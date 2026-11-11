@@ -313,6 +313,11 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
 .studio-node-salary-cell{display:flex;align-items:center;gap:5px;min-width:0;flex:none}
 .studio-card-salary-edit{font-size:12px;font-weight:700;display:grid;place-items:center;cursor:pointer;background:#e9f5ef;border:1px solid #b5d7ca;border-radius:5px;color:#197765;width:22px;height:24px;flex:none;padding:0}
 .studio-card-salary-edit:hover{background:#d7eee3;border-color:#65b69e;color:#076c5e}
+
+/* Base salary is an editable per-scenario reference, not a read-only payroll lock */
+.studio-salary-comparison .studio-salary-base-field{display:block;width:100%;box-sizing:border-box;padding:10px;border:1px solid #b8d9cc;background:#fff;border-radius:8px;color:#25493e;font:700 13px 'IBM Plex Sans Thai',sans-serif}
+.studio-salary-comparison .studio-salary-base-field:focus{outline:2px solid #0b9c862a;border-color:#078778}
+.studio-salary-comparison .studio-salary-base-help{font-size:10px;line-height:1.6;color:#6d9184;margin:5px 0 10px}
 </style>
 </head>
 <body>
@@ -459,7 +464,7 @@ function monthFinancial(m){
  let monthlyStaff=0,oneTime=0,active=data.employees.length;
  let exitSavings=0,hireCost=0,salaryChangeCost=0;
  for(const e of data.employees){
-  const ch=sc.changes[e.id]||{},oldCost=monthlyCost(e);
+  const ch=sc.changes[e.id]||{},oldCost=monthlyCost(e,studioSalaryBase(e));
   const exit=studioInactiveDecision(ch.decision)&&m>=Math.max(1,Math.min(12,Math.round(num(ch.effectiveMonth)||1)));
   if(exit){
    active--;exitSavings+=oldCost;
@@ -501,7 +506,7 @@ function stats(){
  return {months,annualBase,annualPlan,annualSave,current,month12,changed,hires,oneTime,payback,budget:num(data.settings.budget)};
 }
 function studioInactiveDecision(decision){return decision==='inactive'||decision==='exit';}
-function studioEmployeePlanCost(e){const c=changeFor(e.id);const salary=c.salaryOverride!==undefined&&c.salaryOverride!==null&&c.salaryOverride!==''?num(c.salaryOverride):num(e.salary);return monthlyCost(e,salary);}
+function studioEmployeePlanCost(e){const c=changeFor(e.id);const salary=c.salaryOverride!==undefined&&c.salaryOverride!==null&&c.salaryOverride!==''?num(c.salaryOverride):studioSalaryBase(e);return monthlyCost(e,salary);}
 function studioToggleEmployee(id){
  const row=data.employees.find(e=>e.id===id);
  if(!row){toast('เปิด/ปิดได้เฉพาะพนักงานที่มีอยู่ในฐาน');return;}
@@ -574,7 +579,7 @@ return sharedHeader('ภาพรวมกำลังคน','ดูโคร�
 function empty(title,sub,icon='users',action=''){return `<div class="empty"><div class="empty-icon">${ic(icon)}</div><strong>${title}</strong><p>${sub}</p>${action}</div>`}
 function rosterCurrent(e){return `<tr><td><div class="employee-cell"><span class="avatar">${h((e.name||'??').slice(0,2))}</span><div><strong>${h(e.name)}</strong><div class="position-minor">${h(e.role)}</div></div></div></td><td>${h(e.dept)}</td><td class="month-col">${money(e.salary)}</td><td class="month-col">${money(e.allowance)}</td><td>${statusFor(e)}</td><td><button class="button compact" data-action="edit-employee" data-id="${h(e.id)}">${ic('edit')} แก้ไข</button> <button class="button compact" data-action="plan-employee" data-id="${h(e.id)}">จัดแผน</button></td></tr>`}
 function renderEmployees(){const matched=data.employees.filter(e=>(employeeDept==='all'||e.dept===employeeDept)&&[e.name,e.role,e.dept].join(' ').toLowerCase().includes(employeeQuery.toLowerCase()));return sharedHeader('ฐานข้อมูลพนักงาน','ข้อมูลต้นทางสำหรับจำลองโครงสร้างใหม่ แก้ไขเงินเดือนและตำแหน่งได้จากหน้านี้',`${btn(ic('upload')+' นำเข้า CSV','import-csv')}${btn(ic('plus')+' เพิ่มพนักงาน','add-employee','primary')}`)+`<section class="panel panel-pad"><div class="table-toolbar"><div class="toolbar-flex"><div class="search-wrap">${ic('search')}<input id="employeeSearch" class="search" placeholder="ค้นหาชื่อ ตำแหน่ง แผนก" value="${h(employeeQuery)}"></div><select class="select small" id="employeeDept"><option value="all">ทุกแผนก</option>${studioDepartmentNames().map(d=>`<option ${employeeDept===d?'selected':''}>${h(d)}</option>`).join('')}</select></div><div class="toolbar-flex">${btn(ic('download')+' ส่งออก CSV','export-csv','compact')}${btn(ic('download')+' ไฟล์ตัวอย่าง','template-csv','compact')}</div></div>${matched.length?`<div class="table-clip"><table class="data-table"><thead><tr><th>พนักงาน / ตำแหน่ง</th><th>แผนก</th><th style="text-align:right">เงินเดือน</th><th style="text-align:right">เบี้ยเลี้ยง</th><th>แผนจำลอง</th><th>จัดการ</th></tr></thead><tbody>${matched.map(rosterCurrent).join('')}</tbody></table></div>`:empty('ไม่พบพนักงาน','ลองเปลี่ยนคำค้นหา หรือนำเข้ารายชื่อพนักงาน','users') }<div class="compact-note">แสดง ${matched.length} จาก ${data.employees.length} คน · การเปลี่ยนเงินเดือนตรงนี้ถือเป็นการแก้ข้อมูลฐาน ไม่ใช่การจำลองในแผน · ใช้ชื่อพนักงานจริงเฉพาะในเครื่องที่ไว้ใจได้</div></section>`}
-function plannedStaff(){const s=scenario();const active=data.employees.filter(e=>!studioInactiveDecision((s.changes[e.id]||{}).decision)).map(e=>{const c=s.changes[e.id]||{};return {...e,managerId:c.managerOverride!==undefined?c.managerOverride:e.managerId,salary:c.salaryOverride!==''&&c.salaryOverride!=null?num(c.salaryOverride):num(e.salary),planned:false}});return [...active,...s.hires.map(e=>({...e,name:e.name||'รอรับพนักงาน',planned:true,startDate:''}))]}
+function plannedStaff(){const s=scenario();const active=data.employees.filter(e=>!studioInactiveDecision((s.changes[e.id]||{}).decision)).map(e=>{const c=s.changes[e.id]||{};return {...e,managerId:c.managerOverride!==undefined?c.managerOverride:e.managerId,salary:c.salaryOverride!==''&&c.salaryOverride!=null?num(c.salaryOverride):studioSalaryBase(e),planned:false}});return [...active,...s.hires.map(e=>({...e,name:e.name||'รอรับพนักงาน',planned:true,startDate:''}))]}
 function orgCard(e){const salary=num(e.salary)+num(e.allowance);return `<div class="org-card ${e.planned?'planned':''}" data-action="${e.planned?'edit-hire':(orgMode==='planned'?'plan-employee':'edit-employee')}" data-id="${h(e.id)}" draggable="true" title="คลิกเพื่อแก้ไข หรือลากไปวางบนหัวหน้าเพื่อย้ายสายรายงาน"><div class="org-line"><div class="avatar">${h((e.name||'พน').slice(0,2))}</div><div style="min-width:0"><div class="org-name">${h(e.name||'รอรับพนักงาน')}</div><div class="org-role">${h(e.role||'-')}</div></div></div><div class="org-salary"><span>${h(e.dept||'-')}${e.planned?' • จ้างใหม่':''}</span><b>${money(salary)}</b></div></div>`}
 function orgTree(es){if(!es.length)return empty('ยังไม่มีข้อมูลสำหรับผังองค์กร','เพิ่มพนักงานก่อนเพื่อสร้างผังองค์กร','org');const ids=new Set(es.map(e=>e.id));const children=new Map();for(const e of es){const parent=(e.managerId&&e.managerId!==e.id&&ids.has(e.managerId))?e.managerId:'root';const list=children.get(parent)||[];list.push(e);children.set(parent,list)}const drawn=new Set();const node=(e,path=new Set())=>{if(path.has(e.id)||drawn.has(e.id))return '';drawn.add(e.id);const next=new Set(path);next.add(e.id);const kids=(children.get(e.id)||[]).filter(c=>!next.has(c.id));return `<div class="org-tree">${orgCard(e)}${kids.length?`<div class="org-children">${kids.map(c=>`<div class="org-branch">${node(c,next)}</div>`).join('')}</div>`:''}</div>`};let roots=children.get('root')||[];let nodes=roots.map(e=>node(e)).filter(Boolean);for(const e of es)if(!drawn.has(e.id))nodes.push(node(e));return `<div class="org-roots">${nodes.join('')}</div>`}
 function renderOrg(){let es=orgMode==='planned'?plannedStaff():data.employees.map(e=>({...e,planned:false}));if(orgDept!=='all')es=es.filter(e=>e.dept===orgDept||e.managerId==='');return sharedHeader('ผังองค์กร','คลิกการ์ดเพื่อแก้ไข หรือลากการ์ดไปวางบนหัวหน้าเพื่อย้ายสายรายงาน · ซูมและเลื่อนผังได้',`${btn(ic('plus')+' เพิ่มพนักงาน','add-employee')}${btn(ic('plus')+' วางแผนจ้าง','add-hire','primary')}`)+`<div class="org-toolbar"><div class="segmented"><button class="segment ${orgMode==='current'?'active':''}" data-action="org-mode" data-mode="current">ผังปัจจุบัน</button><button class="segment ${orgMode==='planned'?'active':''}" data-action="org-mode" data-mode="planned">ผังตามแผน</button></div><div class="toolbar-flex"><select class="select small" id="orgDept"><option value="all">ทุกแผนก</option>${studioDepartmentNames().map(d=>`<option ${orgDept===d?'selected':''}>${h(d)}</option>`).join('')}</select><button class="button compact sm-icon" data-action="zoom-out" title="ย่อ">−</button><span style="font-size:11px;min-width:41px;text-align:center;color:#6c8680">${orgZoom}%</span><button class="button compact sm-icon" data-action="zoom-in" title="ขยาย">+</button></div></div><div class="org-canvas"><div class="org-stage" id="orgStage" style="zoom:${orgZoom/100}">${orgTree(es)}</div></div><div class="org-note">* เส้นเชื่อมอ้างอิง “รายงานต่อ” หากหัวหน้าถูกนำออกจากแผน ลูกทีมจะถูกแสดงเป็นผังแยกจนกว่าจะกำหนดหัวหน้าใหม่ ${orgMode==='planned'?'· เส้นประ = ตำแหน่งที่วางแผนจ้างใหม่':''}</div>`}
@@ -600,7 +605,7 @@ let studioMultiNodes=new Set(),studioMultiEdges=new Set();
 let studioSelectedDept='', studioSelectedNote='', studioNoteGesture=null, studioDepartmentCreateOpen=false, studioDepartmentPendingDelete='';
 let studioCamera={x:0,y:0,z:.78},studioCameraInitialized=false,studioPositions={},studioGesture=null,studioSuppressClick=false;
 const studioW=256,studioH=126;
-function studioPeople(){const sc=scenario();const rows=data.employees.map(e=>{const ch=sc.changes[e.id]||{};return {...e,salary:ch.salaryOverride!=null&&ch.salaryOverride!==''?num(ch.salaryOverride):num(e.salary),managerId:ch.managerOverride!==undefined?ch.managerOverride:e.managerId,studioExit:studioInactiveDecision(ch.decision),planned:false}});rows.push(...sc.hires.map(e=>({...e,name:e.name||'ตำแหน่งว่าง',studioExit:false,planned:true})));return rows;}
+function studioPeople(){const sc=scenario();const rows=data.employees.map(e=>{const ch=sc.changes[e.id]||{};return {...e,salary:ch.salaryOverride!=null&&ch.salaryOverride!==''?num(ch.salaryOverride):studioSalaryBase(e),managerId:ch.managerOverride!==undefined?ch.managerOverride:e.managerId,studioExit:studioInactiveDecision(ch.decision),planned:false}});rows.push(...sc.hires.map(e=>({...e,name:e.name||'ตำแหน่งว่าง',studioExit:false,planned:true})));return rows;}
 function studioLayoutKey(){return orgMode==='current'?'current':`plan:${scenario().id}`;}
 function studioAutomaticPositions(rows){const out={};const root=data.employees.find(e=>!e.managerId)||rows[0];const roots=new Set([root?.id]);const nonRoot=rows.filter(e=>!roots.has(e.id));const ds=[...new Set(nonRoot.map(e=>e.dept))];const fixedOrder=depts.filter(d=>ds.includes(d));ds.filter(d=>!fixedOrder.includes(d)).forEach(d=>fixedOrder.push(d));const columns={};fixedOrder.forEach((d,idx)=>{columns[d]=idx;const gr=nonRoot.filter(e=>e.dept===d), placed=new Set();let ordered=[];let todo=gr.filter(e=>!gr.some(a=>a.id===e.managerId));if(!todo.length)todo=gr.slice(0,1);while(todo.length){let n=todo.shift();if(placed.has(n.id))continue;placed.add(n.id);ordered.push(n);todo.push(...gr.filter(x=>x.managerId===n.id&&!placed.has(x.id)))}gr.forEach(e=>{if(!placed.has(e.id))ordered.push(e)});ordered.forEach((e,i)=>out[e.id]={x:110+idx*340,y:360+i*173})});if(root)out[root.id]={x:Math.max(300,110+(fixedOrder.length-1)*340/2),y:80};return out;}
 function studioPositionMap(rows){data.layouts=data.layouts||{};const k=studioLayoutKey();const pos=data.layouts[k]||{};const fallback=studioAutomaticPositions(rows);let result={};for(const e of rows){const p=pos[e.id]||((orgMode==='planned'&&data.layouts.current)?data.layouts.current[e.id]:null)||fallback[e.id];result[e.id]=p?{x:num(p.x),y:num(p.y)}:{x:110,y:360+Object.keys(result).length*173};}return result;}
@@ -962,7 +967,7 @@ function studioSalaryBase(e){
 function studioSalaryPlanned(e){
  const master=data.employees.find(row=>row.id===e.id);
  const ch=changeFor(e.id);
- return ch.salaryOverride!==null&&ch.salaryOverride!==undefined&&ch.salaryOverride!==''?num(ch.salaryOverride):num(master?.salary??e.salary);
+ return ch.salaryOverride!==null&&ch.salaryOverride!==undefined&&ch.salaryOverride!==''?num(ch.salaryOverride):studioSalaryBase(e);
 }
 function studioSalaryDifference(e){return studioSalaryPlanned(e)-studioSalaryBase(e);}
 function studioSalaryCard(e){
@@ -1001,12 +1006,44 @@ function studioSavePlannedSalary(id,raw){
  const before=studioSalaryPlanned(employee);
  const ch=scenario().changes[id]||{};
  if(Math.abs(before-planned)<.001){render();return;}
- ch.salaryOverride=Math.abs(planned-num(employee.salary))<.001?null:planned;
+ ch.salaryOverride=Math.abs(planned-studioSalaryBase(employee))<.001?null:planned;
  if(!ch.salaryEffectiveMonth)ch.salaryEffectiveMonth=1;
  scenario().changes[id]=ch;
  studioRecordSalaryChange(id,before,planned,ch.salaryEffectiveMonth,'แก้จาก Inspector');
  studioSelected=id;save();render();
  toast('บันทึกเงินเดือนตามแผน: '+money(before)+' → '+money(planned));
+}
+
+function studioSalaryBaseHistoryFor(id){
+ return (scenario().salaryBaseHistory||[]).filter(row=>row.employeeId===id).slice(-8).reverse();
+}
+function studioSaveSalaryBase(id,raw){
+ const person=data.employees.find(e=>e.id===id);
+ if(!person){toast('แก้ฐานได้เฉพาะพนักงานปัจจุบัน');return false;}
+ const value=String(raw??'').trim(),newBase=Number(value);
+ if(value===''||!Number.isFinite(newBase)||newBase<0){toast('กรุณากรอกฐานเงินเดือนเป็นตัวเลขไม่ติดลบ');render();return false;}
+ const sc=scenario(),f=studioFinanceFor(sc);
+ f.baseline.employees=Array.isArray(f.baseline.employees)?f.baseline.employees:[];
+ let row=f.baseline.employees.find(e=>e.id===id);
+ const before=studioSalaryBase(person);
+ if(Math.abs(before-newBase)<.001){render();return true;}
+ const rate=1+Math.max(0,num(f.baseline.employerRate??data.settings.employerRate))/100;
+ if(row){
+  row.salary=newBase;
+  f.baseline.monthlyStaff=Math.max(0,num(f.baseline.monthlyStaff)+(newBase-before)*rate);
+ }else{
+  row={id,name:person.name,salary:newBase,allowance:num(person.allowance)};
+  f.baseline.employees.push(row);
+  f.baseline.employeeCount=f.baseline.employees.length;
+  f.baseline.monthlyStaff=Math.max(0,num(f.baseline.monthlyStaff)+(newBase+num(person.allowance))*rate);
+ }
+ f.baseline.lastEditedAt=new Date().toISOString();
+ sc.salaryBaseHistory=Array.isArray(sc.salaryBaseHistory)?sc.salaryBaseHistory:[];
+ sc.salaryBaseHistory.push({id:uid(),employeeId:id,before,after:newBase,at:f.baseline.lastEditedAt});
+ // An explicit planned salary stays untouched; without an override the plan follows the edited base.
+ studioSelected=id;save();render();
+ toast('แก้ฐานเงินเดือน: '+money(before)+' → '+money(newBase)+' (เฉพาะแผนนี้)');
+ return true;
 }
 function studioSalaryInspector(e){
  const base=studioSalaryBase(e),planned=studioSalaryPlanned(e),delta=planned-base;
@@ -1015,7 +1052,9 @@ function studioSalaryInspector(e){
  const color=delta>0?' is-rise':'';
  const date=m=>{try{return new Date(m).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'})}catch{return ''}};
  return '<section class="studio-salary-comparison"><h4>เปรียบเทียบเงินเดือนเดิม / ใหม่</h4>'
- +'<div class="studio-salary-summary"><span>ฐานเดิม (ล็อกไว้)</span><strong class="is-muted">'+money(base)+'</strong></div>'
+ +'<label for="studioSalaryBaseInput">ฐานเงินเดือนเดิม (แก้ไขได้)</label>'
+ +'<input class="studio-salary-base-field" id="studioSalaryBaseInput" data-quick-id="'+h(e.id)+'" data-quick-field="salaryBaseline" type="number" min="0" step="1" value="'+base+'" aria-label="แก้ฐานเงินเดือนเดิม">'
+ +'<p class="studio-salary-base-help">ปรับฐานอ้างอิงของแผนนี้ได้ โดยไม่ลบเงินเดือนใหม่ที่ตั้งไว้ และไม่กระทบข้อมูลต้นฉบับหรือแผนอื่น</p>'
  +'<label for="studioSalaryPlanInput">เงินเดือนใหม่ตามแผน (บาท / เดือน)</label>'
  +'<input id="studioSalaryPlanInput" data-quick-id="'+h(e.id)+'" data-quick-field="salary" type="number" min="0" step="1" value="'+planned+'" aria-label="แก้เงินเดือนใหม่ตามแผน">'
  +'<label for="studioSalaryEffective">เริ่มใช้เงินเดือนใหม่ ตั้งแต่เดือนที่</label>'
@@ -1024,9 +1063,11 @@ function studioSalaryInspector(e){
  +'<div class="studio-salary-summary total'+color+'"><span>'+(delta<0?'ประหยัดเงินเดือนต่อเดือน':delta>0?'เงินเดือนเพิ่มขึ้นต่อเดือน':'ส่วนต่างต่อเดือน')+'</span><strong>'+(delta<0?'−':delta>0?'+':'')+money(Math.abs(delta))+'</strong></div>'
  +(rate>0?'<div class="studio-salary-summary"><span>ผลต่างต้นทุนนายจ้างรวมสมทบ</span><strong>'+(delta<0?'−':delta>0?'+':'')+money(Math.abs(delta)*(1+rate/100))+'</strong></div>':'')
  +'<button class="studio-salary-action" data-action="salary-reset" data-id="'+h(e.id)+'">คืนเงินเดือนในแผนเป็นฐานเดิม</button>'
- +'<div class="studio-salary-history"><b>ประวัติการปรับในแผนนี้</b>'
+ +'<div class="studio-salary-history"><b>ประวัติแก้ฐานเดิม</b>'
+ +(studioSalaryBaseHistoryFor(e.id).length?studioSalaryBaseHistoryFor(e.id).map(entry=>'<div class="studio-salary-history-item"><div>'+money(entry.before)+' → '+money(entry.after)+'<small>'+h(date(entry.at))+'</small></div><strong>ฐานแก้ไข</strong></div>').join(''):'<div class="studio-inline-help">ยังไม่มีการแก้ไขฐานเดิมในแผนนี้</div>')
+ +'<b style="margin-top:12px">ประวัติปรับเงินเดือนใหม่</b>'
  +(history.length?history.map(entry=>'<div class="studio-salary-history-item"><div>'+money(entry.before)+' → '+money(entry.after)+'<small>'+h(date(entry.at))+' · เดือนที่ '+num(entry.effectiveMonth)+'</small></div><strong>'+(entry.after<entry.before?'−':'+')+money(Math.abs(entry.after-entry.before))+'</strong></div>').join(''):'<div class="studio-inline-help">ยังไม่มีประวัติใหม่ที่บันทึกหลังเพิ่มฟีเจอร์นี้ · ฐานเดิมยังคงแสดงด้านบน</div>')
- +'</div><div class="studio-inline-help">เงินเดือนฐานเดิมจะไม่เปลี่ยนเมื่อทดลองปรับในแผน · ประวัติไม่ปรากฏในไฟล์ที่ส่งให้พนักงาน</div></section>';
+ +'</div><div class="studio-inline-help">ฐานเดิมและเงินเดือนใหม่แก้แยกกันได้ · ประวัติไม่ปรากฏในไฟล์ที่ส่งให้พนักงาน</div></section>';
 }
 function studioQuickInspector(e){
  const hire=scenario().hires.some(x=>x.id===e.id),planned=orgMode==='planned'&&!hire;
@@ -1059,6 +1100,7 @@ function studioQuickSave(id,key,value){
   const map=new Map(studioPeople().map(e=>[e.id,e]));let cur=value,seen=new Set();
   while(cur&&!seen.has(cur)){if(cur===id){toast('เลือกหัวหน้าไม่ได้ เพราะจะเกิดสายบังคับบัญชาวนกลับ');render();return}seen.add(cur);cur=map.get(cur)?.managerId||'';}
  }
+ if(key==='salaryBaseline'&&!hire){studioSaveSalaryBase(id,value);return;}
  if(key==='salary'&&!hire){studioSavePlannedSalary(id,value);return;}
  if(key==='salaryEffectiveMonth'&&!hire){
   const ch=scenario().changes[id]||{};

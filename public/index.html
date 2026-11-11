@@ -502,7 +502,7 @@ function studioSelectionEdges(rect){
  return hit;
 }
 function studioSelectionPaint(){
- $('.studio-node').forEach(n=>{
+ $$('.studio-node').forEach(n=>{
   const active=studioMultiNodes.has(n.dataset.nodeId);
   n.classList.toggle('studio-node-multi',active);
   n.classList.toggle('studio-node-selected',active||(!studioMultiNodes.size&&n.dataset.nodeId===studioSelected));

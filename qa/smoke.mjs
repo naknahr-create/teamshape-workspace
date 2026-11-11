@@ -82,6 +82,53 @@ try{
   assert.ok(state.employees.some(e=>e.dept==='QA Innovation Office'),'Renaming populated department must update staff');
   assert.equal(state.employees.length,before.length,'Department operations must not delete staff');
  });
+ await check('visible department deletion transfers staff and preserves pay',async()=>{
+  const storageKey='teamshape-workforce-v1';
+  const before=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),storageKey);
+  const office='QA Innovation Office';
+  assert.ok(before.employees.some(e=>e.dept===office),'Previous test should assign an employee to the new department');
+  const moved=before.employees.filter(e=>e.dept===office).map(e=>({id:e.id,salary:e.salary,allowance:e.allowance,managerId:e.managerId}));
+  const trash=page.locator('.studio-dept-delete-icon[data-dept="QA Innovation Office"]');
+  assert.ok(await trash.isVisible(),'Trash icon must be visible beside every department');
+  await trash.click();
+  const panel=page.locator('#studioDepartmentDeleteForm');
+  assert.ok(await panel.isVisible(),'Delete form should appear without scrolling the inspector');
+  assert.ok((await panel.innerText()).includes('พนักงานปัจจุบัน'));
+  await panel.locator('select[name="destination"]').selectOption('Dealmaker');
+  await panel.locator('button[type="submit"]').click();
+  assert.equal(await page.locator('.studio-dept-shortcut[data-dept="QA Innovation Office"]').count(),0,'Deleted department should disappear');
+  const after=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),storageKey);
+  assert.equal(after.employees.length,before.employees.length,'No employee may be deleted');
+  for(const item of moved){
+    const employee=after.employees.find(e=>e.id===item.id);
+    assert.equal(employee.dept,'Dealmaker');
+    assert.equal(employee.salary,item.salary);
+    assert.equal(employee.allowance,item.allowance);
+    assert.equal(employee.managerId,item.managerId);
+  }
+  await page.locator('[data-action="studio-undo"]').click();
+  const undone=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),storageKey);
+  assert.ok(undone.employees.some(e=>e.dept===office),'Undo must restore deleted department staff');
+  assert.ok(await page.locator('.studio-dept-shortcut[data-dept="QA Innovation Office"]').count());
+  await page.locator('.studio-dept-delete-icon[data-dept="QA Innovation Office"]').click();
+  await page.locator('[data-action="department-delete-cancel"]').click();
+  assert.ok(await page.locator('.studio-dept-shortcut[data-dept="QA Innovation Office"]').count(),'Cancel must preserve department');
+ });
+ await check('delete empty department without touching other departments',async()=>{
+  await page.locator('[data-action="department-add"]').click();
+  await page.locator('#studioDepartmentForm input[name="departmentName"]').fill('QA Empty Department');
+  await page.locator('#studioDepartmentForm button[type="submit"]').click();
+  assert.ok(await page.locator('.studio-dept-delete-icon[data-dept="QA Empty Department"]').isVisible());
+  const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')));
+  await page.locator('.studio-dept-delete-icon[data-dept="QA Empty Department"]').click();
+  const panel=page.locator('#studioDepartmentDeleteForm');
+  assert.equal(await panel.locator('select[name="destination"]').count(),0,'Empty department should not require reassignment');
+  await panel.locator('button[type="submit"]').click();
+  assert.equal(await page.locator('.studio-dept-shortcut[data-dept="QA Empty Department"]').count(),0);
+  const after=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')));
+  assert.equal(after.employees.length,before.employees.length);
+  assert.ok(!after.departments.includes('QA Empty Department'));
+ });
  await check('sticky note is created and editable on canvas',async()=>{
   await page.locator('[data-action="tool-sticky"]').click();
   assert.ok(await page.locator('[data-action="tool-sticky"].active').count(),'sticky tool should be active');

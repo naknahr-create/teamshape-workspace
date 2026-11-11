@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="referrer" content="no-referrer">
+<title>นำเข้าพนักงาน — TeamShape</title>
+<style>
+:root{color-scheme:light;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#193936;background:#f7faf9}
+*{box-sizing:border-box}body{min-height:100dvh;display:grid;place-items:center;margin:0;padding:20px}
+main{max-width:530px;width:100%;border:1px solid #e2eeea;border-radius:20px;box-shadow:0 8px 30px #174b4120;background:white;padding:30px 32px}
+.logo{font-weight:800;font-size:19px;margin-bottom:26px}.logo b{display:inline-grid;place-items:center;background:#087f78;color:white;padding:8px;border-radius:10px;margin-right:8px}
+h1{font-size:22px;margin:0 0 8px}p{line-height:1.7;font-size:14px;color:#58716b}.small{font-size:12px;color:#718a84}
+.stats{display:flex;gap:11px;margin:20px 0}.stat{flex:1;background:#f1f8f6;border:1px solid #e5f1eb;border-radius:12px;padding:15px}.stat b{display:block;color:#147b70;font-size:22px}.stat span{font-size:12px;color:#617a74}
+button,a.button{font:inherit;display:inline-block;background:#087f78;color:#fff;padding:12px 20px;border:0;border-radius:10px;text-decoration:none;font-weight:700;cursor:pointer;margin-right:7px;margin-top:6px}.secondary{background:#eff6f3!important;color:#2b6c61!important}
+.notice{font-size:12px;padding:12px;border-radius:10px;background:#fffaf0;color:#836936;margin-top:20px}
+.error{color:#af463d}.success{color:#0c766b}
+@media(max-width:480px){main{padding:23px}.stats{flex-wrap:wrap}}
+</style>
+</head>
+<body><main><div class="logo"><b>▦</b> TeamShape.</div><h1 id="title">กำลังตรวจข้อมูลพนักงาน</h1><p id="message">ไฟล์เข้ารหัสกำลังถูกถอดรหัสภายในเบราว์เซอร์ของคุณ</p><div class="stats" id="stats" hidden><div class="stat"><b id="count">—</b><span>พนักงานปัจจุบัน</span></div><div class="stat"><b id="salary">—</b><span>ฐานเงินเดือนรวม/เดือน</span></div></div><div id="actions"></div><div class="notice">ข้อมูลพนักงานถูกนำเข้าและเก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่ได้ส่งไปยัง GitHub หรือฐานข้อมูลออนไลน์ หากเปลี่ยนอุปกรณ์ ข้อมูลจะไม่ซิงก์โดยอัตโนมัติ</div></main>
+<script>
+(async () => {
+'use strict';
+const storageKey='teamshape-workforce-v1', title=document.querySelector('#title'),msg=document.querySelector('#message'),actions=document.querySelector('#actions');
+const failure=(s)=>{title.textContent='ยังนำเข้าไม่สำเร็จ';title.className='error';msg.textContent=s};
+const success=(s)=>{title.textContent='นำเข้าข้อมูลสำเร็จ';title.className='success';msg.textContent=s;actions.innerHTML='<a class="button" href="/">เปิดผังองค์กร TeamShape</a>'};
+const decode=(s)=>{s=s.replace(/-/g,'+').replace(/_/g,'/');return Uint8Array.from(atob(s.padEnd(Math.ceil(s.length/4)*4,'=')),c=>c.charCodeAt(0));};
+const hash=location.hash.slice(1);if(hash){history.replaceState(null,'',location.pathname)}
+try {
+ if(!hash.startsWith('v1.')) throw new Error('ลิงก์นำเข้าข้อมูลไม่สมบูรณ์');
+ const pieces=hash.split('.');if(pieces.length!==4)throw new Error('ลิงก์นำเข้าข้อมูลไม่ถูกต้อง');
+ const key=await crypto.subtle.importKey('raw',decode(pieces[1]),'AES-GCM',false,['decrypt']);
+ const buffer=await crypto.subtle.decrypt({name:'AES-GCM',iv:decode(pieces[2]),additionalData:new TextEncoder().encode('teamshape-import-v1')},key,decode(pieces[3]));
+ const decoded=await new Response(new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+ const payload=JSON.parse(decoded),employees=payload.employees;
+ if(payload.schema!=='teamshape-import-v1'||!Array.isArray(employees)||employees.length!==payload.count||employees.length>5000)throw new Error('ข้อมูลพนักงานไม่ตรงรูปแบบ');
+ let total=0;const ids=new Set();for(const e of employees){if(!e.id||!e.name||!e.role||!e.dept||!Number.isFinite(e.salary)||e.salary<0||ids.has(e.id))throw new Error('รายการพนักงานไม่สมบูรณ์หรือรหัสซ้ำ');ids.add(e.id);total+=e.salary;}
+ if(total!==payload.salaryTotal)throw new Error('ยอดรวมฐานเงินเดือนไม่ตรงไฟล์ต้นฉบับ');
+ document.querySelector('#stats').hidden=false;document.querySelector('#count').textContent=employees.length+' คน';document.querySelector('#salary').textContent=new Intl.NumberFormat('th-TH').format(total)+' ฿';
+ let previous=null,previousRaw=null;try{previousRaw=localStorage.getItem(storageKey);if(previousRaw)previous=JSON.parse(previousRaw)}catch{}
+ const alreadyImported=previous?.demo===false && previous.employees?.length===employees.length && previous.employees?.every((r,i)=>r.id===employees[i].id&&Number(r.salary)===employees[i].salary);
+ if(alreadyImported){success('ข้อมูลชุดนี้อยู่ในเบราว์เซอร์แล้ว');return;}
+ const importNow=()=>{
+   if(previousRaw){try{localStorage.setItem('teamshape-import-backup-'+Date.now(),previousRaw)}catch{}}
+   const company=previous?.company||'DEAL! — พื้นที่วางแผน';
+   const data={version:'2.0.0',company,demo:false,settings:{employerRate:0,budget:0,startMonth:'2026-11'},employees,
+     scenarios:[{id:'s1',name:'แผนหลัก — พนักงานจริง',notes:'นำเข้าจาก NAKNA วันที่ 11 พฤศจิกายน 2569',changes:{},hires:[]}],currentScenario:'s1'};
+   localStorage.setItem(storageKey,JSON.stringify(data));
+   const verify=JSON.parse(localStorage.getItem(storageKey)||'null');if(!verify||verify.employees.length!==employees.length||verify.employees.reduce((x,e)=>x+Number(e.salary),0)!==total)throw new Error('ตรวจสอบการบันทึกไม่ผ่าน');
+   success('บันทึกข้อมูล '+employees.length+' คน ลงในเครื่องนี้เรียบร้อยแล้ว กำลังเปิดผังองค์กร');
+   setTimeout(()=>location.replace('/'),900);
+ };
+ if(previous && previous.demo===false && previous.employees?.length){title.textContent='พบข้อมูลเดิมในเครื่อง';msg.textContent='ไฟล์ใหม่มี '+employees.length+' คน กรุณายืนยันก่อนแทนที่ข้อมูลเดิม ทีมงานแนะนำให้สำรอง JSON จากเว็บหลักก่อน';
+  const confirm=document.createElement('button');confirm.textContent='ยืนยันแทนที่ข้อมูลเดิม';const cancel=document.createElement('a');cancel.className='button secondary';cancel.href='/';cancel.textContent='กลับไปสำรองข้อมูล';actions.append(confirm,cancel);
+  confirm.addEventListener('click',()=>{try{importNow()}catch(e){failure('บันทึกไม่สำเร็จ: '+e.message)}},{once:true});
+ } else importNow();
+}catch(e){failure(e.message||'ไม่สามารถอ่านข้อมูลที่เข้ารหัสไว้ได้');}
+})();
+</script></body></html>

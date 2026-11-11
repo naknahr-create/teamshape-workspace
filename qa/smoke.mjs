@@ -234,6 +234,54 @@ try{
   const redone=await page.locator('.studio-node').evaluateAll(nodes=>nodes.slice(0,2).map(n=>Number.parseFloat(n.style.left)));
   assert.deepEqual(redone,after,'Redo should move both cards again');
  });
+
+ await check('frozen baseline and manual total preserve comparable savings',async()=>{
+  const oldState=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')));
+  const oldFinance=oldState.scenarios.find(sc=>sc.id===oldState.currentScenario).finance;
+  assert.ok(oldFinance.baseline.monthlyStaff>0,'Finance baseline should be persisted');
+  const calculate=(m,state)=>{
+   const sc=state.scenarios.find(x=>x.id===state.currentScenario),rate=Number(state.settings.employerRate)||0;
+   let cost=0;
+   for(const e of state.employees){
+    const ch=sc.changes[e.id]||{},exit=ch.decision==='exit'&&m>=Number(ch.effectiveMonth||1);
+    if(!exit)cost+=(Number(ch.salaryOverride??e.salary)+Number(e.allowance||0))*(1+rate/100);
+   }
+   for(const e of sc.hires)if(m>=Number(e.startMonth||1))cost+=(Number(e.salary)+Number(e.allowance||0))*(1+rate/100);
+   return cost;
+  };
+  const originalPlanned1=calculate(1,oldState),originalPlanned12=calculate(12,oldState);
+  await page.locator('[data-action="finance-open"]').click();
+  const panel=page.locator('#studioFinancePanel');
+  assert.ok(await panel.isVisible(),'Finance pane must open from the cost header');
+  assert.ok(await panel.locator('tr').count()>10,'Finance pane must show breakdown and monthly rows');
+  await panel.locator('#financeBaselineMode').selectOption('manual');
+  const manualTotal=oldFinance.baseline.monthlyStaff+40000;
+  await panel.locator('#financeManualTotal').fill(String(manualTotal));
+  await panel.locator('#financeOtherDelta').fill('-10000');
+  await panel.locator('select[name="otherEffectiveMonth"]').selectOption('4');
+  await panel.locator('#studioFinanceForm button[type="submit"]').click();
+  const state=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')));
+  const sc=state.scenarios.find(x=>x.id===state.currentScenario);
+  assert.equal(sc.finance.mode,'manual');
+  assert.equal(sc.finance.manualTotal,manualTotal);
+  assert.equal(sc.finance.otherDelta,-10000);
+  assert.equal(sc.finance.otherEffectiveMonth,4);
+  assert.equal(sc.finance.baseline.monthlyStaff,oldFinance.baseline.monthlyStaff,'Frozen baseline snapshot must not change');
+  assert.ok(await page.locator('#studioFinancePanel').isVisible(),'Finance pane should remain open after saving');
+  const stateText=await page.locator('.studio-subbar').innerText();
+  assert.ok(stateText.includes(Math.round(manualTotal).toLocaleString('th-TH')),'Header should show manually overridden baseline');
+  const month1Expected=originalPlanned1+40000,month12Expected=originalPlanned12+30000;
+  const renderedRows=await panel.locator('.studio-finance-months tbody tr').allTextContents();
+  assert.equal(renderedRows.length,12);
+  assert.ok(renderedRows[0].includes(Math.round(month1Expected).toLocaleString('th-TH')),'First month includes preserved overhead, before other cost change');
+  assert.ok(renderedRows[11].includes(Math.round(month12Expected).toLocaleString('th-TH')),'Month 12 includes change in other costs');
+  const exportNames=await panel.locator('label').allTextContents();
+  assert.ok(exportNames.some(x=>x.includes('ต้นทุนรวมก่อนปรับ')));
+  await page.screenshot({path:'qa-artifacts/finance.png',fullPage:false});
+  await page.reload({waitUntil:'networkidle'});
+  const persisted=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')));
+  assert.equal(persisted.scenarios.find(x=>x.id===persisted.currentScenario).finance.manualTotal,manualTotal);
+ });
  await page.screenshot({path:'qa-artifacts/desktop.png',fullPage:false});
  const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,deviceScaleFactor:2});
  mobile.on('pageerror',err=>errors.push(err.stack||String(err)));

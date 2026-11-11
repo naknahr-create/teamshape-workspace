@@ -28,6 +28,42 @@ try{
   assert.ok((await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1'))))
    .employees.some(e=>e.role==='QA Role Without Modal'));
  });
+ await check('18 position choices and custom job titles',async()=>{
+  const employee=page.locator('.studio-roster-row[data-action="focus-node"]').first();
+  await employee.click();
+  const select=page.locator('select[data-role-preset-quick]').first();
+  assert.ok(await select.isVisible(),'Position must use a dropdown');
+  const values=await select.locator('option').evaluateAll(opts=>opts.map(o=>o.value));
+  assert.equal(values.length,19,'18 preset levels plus custom entry');
+  assert.ok(values.includes('Junior')&&values.includes('Senior')&&values.includes('Entry Level / First Jobber')&&values.includes('C-Level')&&values.includes('CEO'));
+  const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')).employees[0]);
+  await select.selectOption('Junior');
+  let stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')).employees[0]);
+  assert.equal(stored.role,'Junior','Selecting preset should save immediately');
+  assert.equal(stored.salary,before.salary,'Salary must not change when setting role');
+  const custom=page.locator('select[data-role-preset-quick]').first();
+  await custom.selectOption('__custom__');
+  const input=page.locator('input[data-role-custom-quick]').first();
+  assert.ok(await input.isVisible(),'Custom role input becomes available on demand');
+  await input.fill('QA Role Without Modal');
+  await input.press('Tab');
+  stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')).employees[0]);
+  assert.equal(stored.role,'QA Role Without Modal','Legacy custom roles remain editable');
+  assert.equal(stored.salary,before.salary);
+  await page.locator('[data-action="add-employee"]').click();
+  assert.equal(await page.locator('#modalRolePreset option').count(),19,'Add employee modal has 18 choices and custom');
+  await page.locator('#modalRolePreset').selectOption('Senior');
+  assert.equal(await page.locator('#modalRoleValue').inputValue(),'Senior');
+  await page.locator('#modalRolePreset').selectOption('__custom__');
+  assert.ok(await page.locator('#modalRoleValue').isVisible(),'Modal custom title is editable');
+  await page.locator('#modalRoleValue').fill('Custom Specialist');
+  await page.locator('[data-action="close-modal"]').first().click();
+  await page.locator('[data-action="add-hire"]').first().click();
+  assert.equal(await page.locator('#modalRolePreset option').count(),19,'Hiring modal has job levels');
+  await page.locator('#modalRolePreset').selectOption('Manager');
+  assert.equal(await page.locator('#modalRoleValue').inputValue(),'Manager');
+  await page.locator('[data-action="close-modal"]').first().click();
+ });
  await check('department goal and KPI editing',async()=>{
   await page.locator('.studio-dept-shortcut').filter({hasText:'Dealmaker'}).first().click();
   const goal=page.locator('[data-strategy-field="goal"]');

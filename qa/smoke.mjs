@@ -305,6 +305,12 @@ try{
   const amount=str=>Number((str||'').replace(/[^\d.-]/g,''))||0;
   const previousSalary=sc.changes.e1?.salaryOverride??e.salary;
   const reduced=Math.max(0,base-3000);
+  const editFromCard=page.locator('.studio-node[data-node-id="e1"] [data-action="salary-edit"]');
+  assert.ok(await editFromCard.count(),'Employee card should have a one-click salary edit shortcut');
+  await editFromCard.click();
+  assert.ok(await page.locator('#studioSalaryPlanInput').isVisible(),'Salary edit shortcut opens the Inspector');
+  const focused=await page.locator('#studioSalaryPlanInput').evaluate(el=>el===document.activeElement);
+  assert.ok(focused,'Salary edit shortcut should focus the new salary field');
   const editor=page.locator('#studioSalaryPlanInput');
   assert.ok(await editor.isVisible(),'Quick inspector should show editable salary scenario field');
   assert.ok((await page.locator('.studio-salary-comparison').innerText()).includes(base.toLocaleString('th-TH')),'Original base is visible');

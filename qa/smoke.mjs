@@ -16,6 +16,7 @@ try{
   assert.ok(await page.locator('.studio-shell').count());
   assert.ok((await page.locator('.studio-node').count())>=5);
   assert.ok((await page.locator('.studio-dept-shortcut').count())>=3);
+  assert.equal(await page.locator('.studio-department-frame').count(),0,'colored department background frames must not be rendered');
  });
  await check('direct employee editing',async()=>{
   const employee=page.locator('.studio-roster-row[data-action="focus-node"]').first();

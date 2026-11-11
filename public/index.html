@@ -155,6 +155,15 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
 .studio-note-colors{display:flex;gap:10px;margin:12px 0}
 .studio-note-colors button{width:27px;height:27px;border:2px solid #fff;border-radius:7px;box-shadow:0 0 0 1px #cddbd5;cursor:pointer}
 .studio-note-colors button.active{box-shadow:0 0 0 2px #04877a}
+
+.studio-share-menu{position:relative;display:block;flex:none}
+.studio-share-menu summary{list-style:none;display:flex;align-items:center;gap:6px;background:#e9f6f1;border:1px solid #b9ddcf;border-radius:8px;color:#0a7565;font-size:11px;font-weight:800;padding:8px 10px;cursor:pointer;white-space:nowrap}
+.studio-share-menu summary::-webkit-details-marker{display:none}
+.studio-share-list{position:absolute;right:0;top:calc(100% + 6px);width:234px;background:#fff;border:1px solid #d3e7df;box-shadow:0 8px 28px #214c4429;padding:8px;border-radius:11px;z-index:55}
+.studio-share-list button{width:100%;padding:10px 8px;font-size:11px;text-align:left;border:0;background:#fff;color:#28564c;cursor:pointer;border-radius:7px}
+.studio-share-list button:hover{background:#eef9f4}
+.studio-share-list p{font-size:10px;line-height:1.5;color:#67877f;margin:6px;padding:7px;background:#f1f7f4;border-radius:6px}
+@media(max-width:720px){.studio-share-menu summary{font-size:10px;padding:6px 8px}.studio-share-list{right:0}}
 </style>
 </head>
 <body>
@@ -562,6 +571,67 @@ function studioCanvasItems(){
  return data.canvasItems.filter(n=>n.layout===studioLayoutKey());
 }
 function studioItemColors(){return {yellow:'#fff5bb',pink:'#ffe8ee',blue:'#e0f3ff',mint:'#dcf6e6'}}
+
+/* Employee-safe export: never includes salary, allowance, termination plan, finance or draft future hires. */
+function studioEmployeeSafeSnapshot(){
+ const employees=data.employees.map(e=>({id:String(e.id),name:String(e.name||''),role:String(e.role||''),dept:String(e.dept||'อื่น ๆ'),managerId:String(e.managerId||'')}));
+ const departments=[...new Set(employees.map(e=>e.dept))].sort((a,b)=>a.localeCompare(b,'th'));
+ const published=departments.map(name=>{
+  const conf=(data.strategy||{})[name]||{};
+  return {name,goal:conf.published?String(conf.goal||''):'',owner:conf.published?String(conf.owner||''):'',deadline:conf.published?String(conf.deadline||''):'',kpis:conf.published&&Array.isArray(conf.kpis)?conf.kpis.map(k=>({name:String(k.name||''),target:Math.max(0,num(k.target)),actual:Math.max(0,num(k.actual)),unit:String(k.unit||'')})):[],shared:!!conf.published};
+ });
+ return {company:String(data.company||'Organization'),date:new Date().toLocaleDateString('th-TH'),employees,departments:published};
+}
+function studioEmployeeSafeHTML(){
+ const x=studioEmployeeSafeSnapshot(),lookup=new Map(x.employees.map(e=>[e.id,e]));
+ const groups=x.departments.map(d=>{
+  const people=x.employees.filter(e=>e.dept===d.name);
+  return '<section class="department"><div class="department-heading"><div><div class="eyebrow">DEPARTMENT · '+people.length+' PERSONNEL</div><h2>'+h(d.name)+'</h2></div><span class="count">'+people.length+' คน</span></div>'
+  +(d.shared&&d.goal?'<div class="goal"><b>เป้าหมายแผนก</b><p>'+h(d.goal)+'</p>'+(d.owner?'<small>Owner: '+h(d.owner)+'</small>':'')+(d.deadline?'<small> · Deadline: '+h(d.deadline)+'</small>':'')+'</div>':'')
+  +(d.kpis.length?'<table class="kpi"><thead><tr><th>KPI</th><th>เป้าหมาย</th><th>ผลจริง</th></tr></thead><tbody>'+d.kpis.map(k=>'<tr><td>'+h(k.name)+'</td><td>'+h(String(k.target))+' '+h(k.unit)+'</td><td>'+h(String(k.actual))+' '+h(k.unit)+'</td></tr>').join('')+'</tbody></table>':'')
+  +'<div class="people">'+people.map(e=>'<article class="person"><div class="monogram">'+h((e.name||'?').slice(0,2))+'</div><div><strong>'+h(e.name)+'</strong><p>'+h(e.role)+'</p>'+(lookup.has(e.managerId)?'<small>รายงานต่อ: '+h(lookup.get(e.managerId).name)+'</small>':'<small>หัวหน้าสายงาน / ยังไม่กำหนด</small>')+'</div></article>').join('')+'</div>'
+  +'</section>';
+ }).join('');
+ return '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+ +'<title>'+h(x.company)+' · Organization Overview</title><style>'
+ +'@page{size:A4;margin:14mm}*{box-sizing:border-box}body{margin:0;background:#f7faf9;color:#1f3935;font:14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}'
+ +'.wrap{max-width:1060px;margin:24px auto;padding:18px}.cover{background:#0b6f61;color:#fff;padding:35px;border-radius:18px;margin-bottom:19px}.cover h1{margin:0;font-size:32px;letter-spacing:-1px}.cover p{margin:8px 0 0;color:#d4f3e8}.department{background:#fff;border:1px solid #e0ebe5;border-radius:16px;padding:23px;margin:16px 0;break-inside:avoid-page}.department-heading{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e0ece7;padding-bottom:9px;margin-bottom:14px}.department h2{font-size:20px;margin:3px 0}.eyebrow{font-size:10px;letter-spacing:1px;font-weight:800;color:#579280}.count{font-size:12px;border-radius:20px;background:#e9f7f0;padding:4px 12px}.goal{padding:13px 15px;background:#e9f7f0;border-radius:10px;margin:10px 0}.goal p{margin:4px 0}.goal small{color:#5e8577}.kpi{width:100%;border-collapse:collapse;margin:10px 0 13px;font-size:12px}.kpi th,.kpi td{text-align:left;padding:8px;border-bottom:1px solid #e3ede8}.people{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.person{display:flex;align-items:center;gap:11px;padding:11px;border:1px solid #e4efe8;border-radius:10px;break-inside:avoid}.monogram{width:38px;height:38px;flex:none;display:grid;place-items:center;background:#e3f3ed;border-radius:10px;font-size:12px;font-weight:800}.person strong{font-size:13px}.person p{font-size:11px;margin:0;color:#6e857a}.person small{font-size:10px;color:#719386}.footer{text-align:center;color:#66867e;font-size:11px;margin:25px 0}.print{background:#075f55;color:#fff;border:0;border-radius:9px;padding:12px 18px;cursor:pointer;margin:0 0 15px;font-weight:bold}.privacy{font-size:11px;color:#557b6c;margin:12px 0} @media(max-width:540px){.wrap{padding:12px}.cover{padding:22px}.people{grid-template-columns:1fr}.cover h1{font-size:24px}}@media print{body{background:#fff}.wrap{margin:0;padding:0}.print,.privacy{display:none}.cover{border-radius:0}.department{box-shadow:none;border-radius:0;border-color:#e0eae4;page-break-inside:avoid}}'
+ +'</style></head><body><main class="wrap"><button class="print" onclick="window.print()">พิมพ์ / บันทึกเป็น PDF</button>'
+ +'<header class="cover"><p>EMPLOYEE VIEW · ORGANIZATION</p><h1>'+h(x.company)+'</h1><p>ภาพรวมโครงสร้างองค์กรและ Goal/KPI ที่อนุญาตให้เผยแพร่</p></header>'
+ +'<p class="privacy">ข้อมูล ณ '+h(x.date)+' · ไม่มีเงินเดือน ข้อมูลค่าตอบแทน หรือแผนปรับโครงสร้างบุคลากรในไฟล์นี้</p>'
+ +groups+'<div class="footer">Organization Overview · '+h(x.date)+'</div></main></body></html>';
+}
+function studioEmployeeSafeSVG(){
+ const x=studioEmployeeSafeSnapshot(),byDept=new Map(x.departments.map(d=>[d.name,x.employees.filter(e=>e.dept===d.name)]));
+ const columns=3,cardW=320,gap=28,w=columns*cardW+(columns+1)*gap;
+ let heights=Array(columns).fill(30),out=[];
+ const text=(xv,yv,t,size=14,weight=500,color='#284e45')=>'<text x="'+xv+'" y="'+yv+'" fill="'+color+'" font-family="Arial,sans-serif" font-size="'+size+'" font-weight="'+weight+'">'+h(t)+'</text>';
+ x.departments.forEach((dept,i)=>{
+  const col=heights.indexOf(Math.min(...heights)),X=gap+col*(cardW+gap),Y=heights[col],rows=byDept.get(dept.name);
+  const boxH=68+rows.length*71+(dept.shared&&dept.goal?56:0);
+  out.push('<rect x="'+X+'" y="'+Y+'" width="'+cardW+'" height="'+boxH+'" rx="14" fill="#fff" stroke="#c8e2d7" stroke-width="1.5"/>');
+  out.push('<rect x="'+X+'" y="'+Y+'" width="'+cardW+'" height="48" rx="14" fill="#e2f4ed"/>');
+  out.push(text(X+13,Y+28,dept.name.slice(0,40),14,700,'#126d5f'));
+  let cy=Y+67;
+  if(dept.shared&&dept.goal){out.push(text(X+13,cy,'GOAL: '+dept.goal.slice(0,42),11,500,'#32756d'));cy+=56;}
+  rows.forEach(e=>{out.push('<rect x="'+(X+10)+'" y="'+(cy-15)+'" width="'+(cardW-20)+'" height="61" rx="9" fill="#f9fcfa" stroke="#e1ece7"/>');out.push(text(X+24,cy+2,e.name.slice(0,35),12,700));out.push(text(X+24,cy+23,e.role.slice(0,42),11,400,'#779188'));cy+=71;});
+  heights[col]=Y+boxH+gap;
+ });
+ const height=Math.max(...heights)+20;
+ return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+w+' '+height+'" width="'+w+'" height="'+height+'"><rect width="100%" height="100%" fill="#f6faf8"/>'+text(30,20,x.company+' · Organization Overview',15,700)+out.join('')+'</svg>';
+}
+function studioEmployeeExport(kind){
+ const html=studioEmployeeSafeHTML(),filename='teamshape-organization-employee-view';
+ if(kind==='print'){
+  const win=window.open('','_blank');
+  if(!win){download(html,filename+'.html','text/html;charset=utf-8');toast('เปิดหน้าพิมพ์ถูกบล็อก · ดาวน์โหลด HTML แทน');return;}
+  win.document.open();win.document.write(html);win.document.close();win.focus();toast('เปิดหน้าเอกสารพนักงานแล้ว · เลือก Print / Save as PDF');
+ }else if(kind==='svg'){
+  download(studioEmployeeSafeSVG(),filename+'.svg','image/svg+xml;charset=utf-8');toast('ส่งออกแผนผัง SVG ที่ไม่มีเงินเดือนแล้ว');
+ }else{
+  download(html,filename+'.html','text/html;charset=utf-8');toast('ส่งออกไฟล์ HTML สำหรับพนักงานแล้ว');
+ }
+}
 function studioItemHTML(n){
  const type=n.kind==='text'?'ข้อความ':n.kind==='shape'?'กรอบความคิด':'โพสต์อิต';
  return '<div class="studio-canvas-item '+(studioSelectedNote===n.id?'is-selected':'')+'" data-item-id="'+h(n.id)+'" data-kind="'+h(n.kind)+'" data-color="'+h(n.color)+'" style="left:'+num(n.x)+'px;top:'+num(n.y)+'px">'
@@ -599,7 +669,7 @@ function studioInspector(){if(studioSelectedNote)return studioNoteInspector();if
 const original=data.employees.find(x=>x.id===e.id),ch=original?changeFor(e.id):{},isCurrent=orgMode==='current';const status=e.planned?'ตำแหน่งจ้างใหม่':e.studioExit?'เสนอให้ออก':isCurrent?'พนักงานปัจจุบัน':'คงไว้ในแผน';const selectedSalary=(num(e.salary)+num(e.allowance));const manager=studioPeople().find(x=>x.id===e.managerId);return `<div class="studio-ins-head"><div class="studio-side-eyebrow">INSPECTOR / SELECTED PERSON</div><div class="studio-ins-profile">${studioAvatar(e)}<div><h3>${h(e.name)}</h3><p>${h(e.role)}</p></div></div><div class="studio-status ${e.studioExit?'danger':e.planned?'new':''}">${status}</div></div><div class="studio-ins-body"><div class="studio-mini-title">รายละเอียดตำแหน่ง</div><div class="studio-field"><label>ชื่อพนักงาน / ตำแหน่งว่าง</label><div class="studio-static">${h(e.name)}</div></div><div class="studio-field"><label>หน้าที่ / ตำแหน่ง</label><div class="studio-static">${h(e.role)}</div></div><div class="studio-field"><label>ทีม / แผนก</label><div class="studio-static">${h(e.dept)}</div></div><div class="studio-field"><label>รายงานต่อ</label><div class="studio-static">${h(manager?manager.name+' · '+manager.role:'— สูงสุดในสายงาน —')}</div></div><div class="studio-field"><label>จำนวนลูกทีมโดยตรง</label><div class="studio-static">${studioPeople().filter(x=>x.managerId===e.id).length} คน</div></div><div class="studio-divider"></div><div class="studio-mini-title">ค่าตอบแทน</div><div class="studio-big-salary">${money(selectedSalary)} <span>/ เดือน</span></div><div class="studio-metric-row"><span>เงินเดือนฐาน</span><b>${money(e.salary)}</b></div><div class="studio-metric-row"><span>เบี้ยเลี้ยง</span><b>${money(e.allowance)}</b></div>${original&&!isCurrent&&ch.salaryOverride!=null?`<div class="studio-metric-row"><span>เงินเดือนปัจจุบัน</span><b>${money(original.salary)}</b></div>`:''}<div class="studio-divider"></div><div class="studio-mini-title">แก้ไขจากผังองค์กร</div>${e.managerId?`<button class="studio-action" data-action="disconnect-manager" data-id="${h(e.id)}">ตัดเส้นเชื่อมกับหัวหน้า</button>`:""}<button class="studio-action primary" data-action="${e.planned?'edit-hire':isCurrent?'edit-employee':'plan-employee'}" data-id="${h(e.id)}">${ic('edit')} ${e.planned?'แก้ไขแผนจ้างใหม่':isCurrent?'แก้ข้อมูลพนักงานปัจจุบัน':'ปรับแผน / เงินเดือน / หัวหน้า'}</button>${original&&!isCurrent?`<button class="studio-action ${e.studioExit?'good':'danger'}" data-action="toggle-exit" data-id="${h(e.id)}">${ic('users')} ${e.studioExit?'คืนพนักงานเข้าแผน':'จำลองให้ออก'}</button>`:''}${!e.planned?`<button class="studio-action" data-action="edit-employee" data-id="${h(e.id)}">${ic('file')} แก้ข้อมูลต้นฉบับ</button>`:''}<div class="studio-mini-note">ตำแหน่ง X ${Math.round((studioPositions[e.id]||{}).x||0)} / Y ${Math.round((studioPositions[e.id]||{}).y||0)} · ลากการ์ดเพื่อจัดระยะได้</div></div>`;}
 function studioListItem(e){const exit=orgMode==='planned'&&changeFor(e.id).decision==='exit';const active=studioSelected===e.id;return `<button class="studio-roster-row ${active?'active':''}" data-action="focus-node" data-id="${h(e.id)}">${studioAvatar(e)}<span><b>${h(e.name)}</b><small>${h(e.role)}</small></span>${exit?'<i class="studio-small-exit"></i>':''}</button>`;}
 function renderCanvasStudio(){const st=stats(),rows=studioPeople(),base=st.current,plan=st.month12.planned,delta=base-plan,search=studioSearch.toLowerCase(),filtered=data.employees.filter(e=>[e.name,e.role,e.dept].join(' ').toLowerCase().includes(search));studioPositions=studioPositionMap(rows);if(studioSelected&&!rows.some(x=>x.id===studioSelected))studioSelected='';const s=scenario();return `<div class="studio-shell">
-<header class="studio-topbar"><div class="studio-logo">${ic('org')}</div><div class="studio-brand"><strong>TeamShape<span>.</span></strong><small>ORG STUDIO</small></div><div class="studio-divider-v"></div><div class="studio-breadcrumb"><b>${h(data.company)}</b><span>/</span>Organization Canvas</div><span class="studio-top-spacer"></span><span class="studio-saved">● <span>บันทึกในเครื่อง</span></span><button class="studio-top-quiet" data-action="import-csv" title="นำเข้า CSV">${ic('upload')} <span>นำเข้า CSV</span></button><button class="studio-top-quiet" data-action="download-json" title="สำรอง JSON">${ic('download')} <span>สำรอง</span></button><button class="studio-top-primary" data-action="add-employee">${ic('plus')} เพิ่มพนักงาน</button></header>
+<header class="studio-topbar"><div class="studio-logo">${ic('org')}</div><div class="studio-brand"><strong>TeamShape<span>.</span></strong><small>ORG STUDIO</small></div><div class="studio-divider-v"></div><div class="studio-breadcrumb"><b>${h(data.company)}</b><span>/</span>Organization Canvas</div><span class="studio-top-spacer"></span><span class="studio-saved">● <span>บันทึกในเครื่อง</span></span><button class="studio-top-quiet" data-action="import-csv" title="นำเข้า CSV">${ic('upload')} <span>นำเข้า CSV</span></button><details class="studio-share-menu"><summary>ส่งให้พนักงาน ▾</summary><div class="studio-share-list"><button data-action="export-employee-print">พิมพ์ / บันทึก PDF</button><button data-action="export-employee-html">ดาวน์โหลด HTML ดูได้ทุกเครื่อง</button><button data-action="export-employee-svg">ดาวน์โหลดผัง SVG</button><p>ปลอดเงินเดือน · ไม่มีแผนเลิกจ้าง · แสดง KPI เฉพาะแผนกที่อนุญาต</p></div></details><button class="studio-top-quiet" data-action="download-json" title="สำรอง JSON">${ic('download')} <span>สำรอง</span></button><button class="studio-top-primary" data-action="add-employee">${ic('plus')} เพิ่มพนักงาน</button></header>
 <div class="studio-subbar"><div class="studio-main-label"><div class="studio-page-head">Organization Canvas</div><span class="studio-label-tag">WORKSPACE</span></div><div class="studio-scenario-picker"><span>แผนปัจจุบัน</span>${scenarioSelect()}<button class="studio-icon-button" data-action="new-scenario" title="สร้างแผนใหม่">${ic('plus')}</button><button class="studio-icon-button" data-action="clone-scenario" title="ทำสำเนาแผน">${ic('copy')}</button></div><span class="studio-subbar-spacer"></span><div class="studio-stat"><span>ต้นทุนเดิม</span><strong>${money(base)}</strong></div><div class="studio-stat"><span>ต้นทุนหลังปรับ</span><strong>${money(plan)}</strong></div><div class="studio-stat studio-stat-green ${delta<0?'is-cost':''}"><span>${delta>=0?'ประหยัด/เดือน':'ต้นทุนเพิ่ม/เดือน'}</span><strong>${delta>=0?'+':'−'}${money(Math.abs(delta))}</strong></div></div>
 <div class="studio-main">
 <aside class="studio-left ${studioLeftOpen?'studio-mobile-open':''}"><div class="studio-side-top"><div class="studio-side-eyebrow">LAYERS / TEAM</div><h3>โครงสร้างทีม <span>${data.employees.length}</span></h3><div class="studio-search">${ic('search')}<input id="employeeSearch" placeholder="ค้นหาคนหรือตำแหน่ง" value="${h(studioSearch)}" autocomplete="off"></div></div><div class="studio-roster-scroll"><div class="studio-roster-heading">แผนก / DEPARTMENTS</div>${studioDeptGroups(rows).map(([n,persons])=>`<button class="studio-dept-shortcut ${studioSelectedDept===n?'active':''}" data-action="strategy-dept" data-dept="${h(n)}"><span class="studio-dept-marker" style="width:7px;height:7px;border-radius:3px;background:${studioDeptColor(n)[2]}"></span><b>${h(n)}</b><i>${persons.length}</i></button>`).join('')}<div class="studio-roster-heading">พนักงานปัจจุบัน <span>${filtered.length}</span></div>${filtered.length?filtered.map(studioListItem).join(''):'<div class="studio-placeholder">ไม่พบรายชื่อ</div>'}<div class="studio-roster-heading" style="margin-top:16px">ตำแหน่งรับเพิ่ม <span>${s.hires.length}</span></div>${s.hires.map(e=>`<button class="studio-roster-row future ${studioSelected===e.id?'active':''}" data-action="focus-node" data-id="${h(e.id)}">${studioAvatar({...e,name:e.name||'ตำแหน่งว่าง'})}<span><b>${h(e.role)}</b><small>${money(e.salary)} / เดือน</small></span></button>`).join('')||'<div class="studio-placeholder">ยังไม่มีตำแหน่งที่วางแผนรับเพิ่ม</div>'}</div><div class="studio-sidebar-footer"><button class="studio-action" data-action="add-hire">${ic('plus')} เพิ่มตำแหน่งใหม่</button><div class="studio-side-links"><button data-action="export-csv">${ic('download')} ส่งออก CSV</button><button data-action="template-csv">ไฟล์ตัวอย่าง</button></div></div></aside>
@@ -624,6 +694,9 @@ case 'strategy-close':studioSelectedDept='';render();return;
 case 'strategy-dept':studioSelectedNote='';studioSelectedDept=el.dataset.dept;studioSelected='';studioSelectedEdge='';studioTool='select';render();studioDeptFocus(studioSelectedDept);return;
 case 'strategy-add-kpi':if(studioSelectedDept){studioStrategyFor(studioSelectedDept).kpis.push({name:'',target:0,actual:0,unit:''});save();render();}return;
 case 'strategy-remove-kpi':if(studioSelectedDept){studioStrategyFor(studioSelectedDept).kpis.splice(Number(el.dataset.index),1);save();render();}return;
+case 'export-employee-print':studioEmployeeExport('print');return;
+case 'export-employee-html':studioEmployeeExport('html');return;
+case 'export-employee-svg':studioEmployeeExport('svg');return;
 case 'tool-sticky':studioTool='sticky';studioSelectedEdge='';render();toast('คลิกพื้นที่ว่างบน Canvas เพื่อวางโพสต์อิต');return;
 case 'tool-text':studioTool='text';studioSelectedEdge='';render();toast('คลิกบน Canvas เพื่อเพิ่มข้อความ');return;
 case 'tool-shape':studioTool='shape';studioSelectedEdge='';render();toast('คลิกบน Canvas เพื่อสร้างกรอบ');return;

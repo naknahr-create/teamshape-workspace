@@ -330,12 +330,83 @@ function studioRedo(){
 }
 function save(){try{const next=JSON.stringify(data);if(studioHistoryBaseline!==null&&next!==studioHistoryBaseline){studioUndoStack.push(studioHistoryBaseline);if(studioUndoStack.length>60)studioUndoStack.shift();studioRedoStack=[];}studioHistoryBaseline=next;localStorage.setItem(KEY,next);}catch(e){toast('พื้นที่จัดเก็บข้อมูลในเบราว์เซอร์เต็ม — กรุณาสำรอง JSON')} }
 function toast(message){let el=$('.toast');if(el)el.remove();el=document.createElement('div');el.className='toast';el.textContent=message;document.body.appendChild(el);clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.remove(),3500)}
+
+/* Financial comparison: immutable scenario baseline, explicit manual recurring overhead. */
+function studioFinanceFor(sc=scenario()){
+ if(!sc.finance||!sc.finance.baseline){
+  const rate=Math.max(0,num(data.settings.employerRate));
+  const employees=data.employees.map(e=>({id:e.id,name:e.name,salary:num(e.salary),allowance:num(e.allowance)}));
+  const monthlyStaff=employees.reduce((sum,e)=>sum+(e.salary+e.allowance)*(1+rate/100),0);
+  sc.finance={baseline:{capturedAt:new Date().toISOString(),startMonth:data.settings.startMonth,employerRate:rate,monthlyStaff,employeeCount:employees.length,employees},mode:'auto',manualTotal:null,otherDelta:0,otherEffectiveMonth:1};
+ }
+ const f=sc.finance;
+ if(!['auto','manual'].includes(f.mode))f.mode='auto';
+ if(!Number.isFinite(Number(f.otherDelta)))f.otherDelta=0;
+ if(!f.otherEffectiveMonth)f.otherEffectiveMonth=1;
+ return f;
+}
+function studioFinanceBaseline(sc=scenario()){
+ const f=studioFinanceFor(sc);
+ const staff=num(f.baseline.monthlyStaff);
+ const baseline=f.mode==='manual'&&f.manualTotal!==null&&f.manualTotal!==''?Math.max(0,num(f.manualTotal)):staff;
+ const extra=baseline-staff;
+ return {staff,baseline,extra,mode:f.mode,manualTotal:f.manualTotal,otherDelta:num(f.otherDelta),otherEffectiveMonth:Math.max(1,Math.min(12,Math.round(num(f.otherEffectiveMonth)||1))),capturedAt:f.baseline.capturedAt};
+}
+function studioRefreshBaseline(){
+ if(!confirmAction('สร้างต้นทุนฐานใหม่จากข้อมูลพนักงานปัจจุบัน? ฐานอ้างอิงเดิมของแผนนี้จะเปลี่ยน (สามารถ Undo ได้)'))return;
+ const f=studioFinanceFor(),rate=Math.max(0,num(data.settings.employerRate));
+ const employees=data.employees.map(e=>({id:e.id,name:e.name,salary:num(e.salary),allowance:num(e.allowance)}));
+ f.baseline={capturedAt:new Date().toISOString(),startMonth:data.settings.startMonth,employerRate:rate,monthlyStaff:employees.reduce((total,e)=>total+(e.salary+e.allowance)*(1+rate/100),0),employeeCount:employees.length,employees};
+ f.mode='auto';f.manualTotal=null;f.otherDelta=0;f.otherEffectiveMonth=1;
+ save();render();toast('บันทึกต้นทุนฐานชุดใหม่แล้ว');
+}
 const monthlyCost=(e,sal)=> (num(sal??e.salary)+num(e.allowance))*(1+num(data.settings.employerRate)/100);
-function monthFinancial(m){const s=scenario();let base=0,planned=0,oneTime=0,exits=0,hires=0,active=data.employees.length;
- for(const e of data.employees){const ch=s.changes[e.id]||{};base+=monthlyCost(e);let isExit=ch.decision==='exit'&&m>=Math.max(1,Math.min(12,num(ch.effectiveMonth)||1));if(!isExit){planned+=monthlyCost(e,ch.salaryOverride!==''&&ch.salaryOverride!=null?num(ch.salaryOverride):e.salary);}else{active--;if(m===Math.max(1,Math.min(12,num(ch.effectiveMonth)||1)))oneTime+=num(ch.oneTimeCost);}}
- for(const e of s.hires){const mm=Math.max(1,Math.min(12,num(e.startMonth)||1));if(m>=mm){planned+=monthlyCost(e);active++;if(m===mm)oneTime+=num(e.oneTimeCost);}}
- return {month:m,label:monthLabel(monthOffset(data.settings.startMonth,m-1)),base,planned,oneTime,total:planned+oneTime,savings:base-planned-oneTime,headcount:active};}
-function stats(){const months=Array.from({length:12},(_,i)=>monthFinancial(i+1)),s=scenario();const annualBase=months.reduce((a,m)=>a+m.base,0),annualPlan=months.reduce((a,m)=>a+m.total,0),annualSave=annualBase-annualPlan;const current=monthlyCostSum(data.employees),month12=months[11],changed=Object.values(s.changes).filter(v=>v.decision==='exit').length,hires=s.hires.length,oneTime=months.reduce((a,m)=>a+m.oneTime,0);let acc=0,payback=null;months.forEach((m,i)=>{acc+=m.savings;if(acc>=0&&payback===null&&annualSave>=0&&month12.base>=month12.planned)payback=i+1});return {months,annualBase,annualPlan,annualSave,current,month12,changed,hires,oneTime,payback,budget:num(data.settings.budget)};}
+function monthFinancial(m){
+ const sc=scenario(),f=studioFinanceBaseline(sc);
+ let monthlyStaff=0,oneTime=0,active=data.employees.length;
+ let exitSavings=0,hireCost=0,salaryChangeCost=0;
+ for(const e of data.employees){
+  const ch=sc.changes[e.id]||{},oldCost=monthlyCost(e);
+  const exit=ch.decision==='exit'&&m>=Math.max(1,Math.min(12,Math.round(num(ch.effectiveMonth)||1)));
+  if(exit){
+   active--;exitSavings+=oldCost;
+   if(m===Math.max(1,Math.min(12,Math.round(num(ch.effectiveMonth)||1))))oneTime+=Math.max(0,num(ch.oneTimeCost));
+  }else{
+   const effective=Math.max(1,Math.min(12,Math.round(num(ch.salaryEffectiveMonth)||1)));
+   const hasOverride=ch.salaryOverride!==null&&ch.salaryOverride!==undefined&&ch.salaryOverride!=='';
+   const newCost=hasOverride&&m>=effective?monthlyCost(e,Math.max(0,num(ch.salaryOverride))):oldCost;
+   monthlyStaff+=newCost;salaryChangeCost+=newCost-oldCost;
+  }
+ }
+ for(const e of sc.hires){
+  const start=Math.max(1,Math.min(12,Math.round(num(e.startMonth)||1)));
+  if(m>=start){
+   const cost=monthlyCost(e);
+   monthlyStaff+=cost;hireCost+=cost;active++;
+   if(m===start)oneTime+=Math.max(0,num(e.oneTimeCost));
+  }
+ }
+ const sourceStaff=monthlyCostSum(data.employees);
+ const sourceDelta=sourceStaff-f.staff;
+ const otherChangeCost=m>=f.otherEffectiveMonth?f.otherDelta:0;
+ const plannedOther=f.extra+otherChangeCost;
+ const planned=monthlyStaff+plannedOther;
+ const base=f.baseline;
+ return {month:m,label:monthLabel(monthOffset(data.settings.startMonth,m-1)),
+  base,planned,oneTime,total:planned+oneTime,savings:base-planned-oneTime,
+  headcount:active,baselineStaff:f.staff,baselineOther:f.extra,plannedStaff:monthlyStaff,plannedOther,
+  sourceDelta,exitSavings,hireCost,salaryChangeCost,otherChangeCost,monthlySavings:base-planned};
+}
+function stats(){
+ const months=Array.from({length:12},(_,i)=>monthFinancial(i+1)),sc=scenario();
+ const annualBase=months.reduce((a,m)=>a+m.base,0),annualPlan=months.reduce((a,m)=>a+m.total,0);
+ const annualSave=annualBase-annualPlan,current=months[0].base,month12=months[11];
+ const changed=Object.values(sc.changes).filter(c=>c.decision==='exit').length,hires=sc.hires.length;
+ const oneTime=months.reduce((a,m)=>a+m.oneTime,0);
+ let net=0,payback=null;
+ months.forEach((m,i)=>{net+=m.savings;if(net>=0&&payback===null&&month12.base>=month12.planned)payback=i+1});
+ return {months,annualBase,annualPlan,annualSave,current,month12,changed,hires,oneTime,payback,budget:num(data.settings.budget)};
+}
 function monthlyCostSum(es){return es.reduce((a,e)=>a+monthlyCost(e),0)};
 function changeFor(id){return scenario().changes[id]||{};}
 function statusFor(e){const ch=changeFor(e.id);if(ch.decision==='exit')return '<span class="pill red"><span class="dot"></span>เสนอให้ออก</span>';if(ch.salaryOverride!=null&&ch.salaryOverride!==''&&num(ch.salaryOverride)!==num(e.salary))return '<span class="pill gold"><span class="dot"></span>ปรับเงินเดือน</span>';return '<span class="pill neutral">คงไว้</span>'}
@@ -411,7 +482,7 @@ function managerOptions(selected,except){return options([...data.employees.filte
 function formField(label,name,value='',type='text',extra=''){return `<div class="field"><label for="f_${name}">${label}</label><input class="input" id="f_${name}" name="${name}" type="${type}" value="${h(value)}" ${extra}></div>`}
 function modalHTML(){let title='',body='',footer='',deleteAction='';const id=modal.id;
  if(modal.type==='employee'){const e=data.employees.find(x=>x.id===id)||{name:'',role:'',dept:depts[0],salary:'',allowance:0,managerId:'',startDate:'',notes:''};title=id?'แก้ไขข้อมูลพนักงาน':'เพิ่มพนักงาน';body=`<form id="modalForm" data-type="employee" class="form-grid">${formField('ชื่อพนักงาน','name',e.name,'text','required maxlength="100"')}${studioRoleModalField(e.role,'ตำแหน่ง / ระดับ')}<div class="field"><label>แผนก</label><select name="dept" class="select">${options(studioDepartmentNames(),e.dept)}</select></div><div class="field"><label>รายงานต่อ (หัวหน้า)</label><select name="managerId" class="select">${managerOptions(e.managerId,id)}</select></div>${formField('เงินเดือนต่อเดือน (บาท)','salary',e.salary,'number','required min="0" step="1"')}${formField('เบี้ยเลี้ยงคงที่ต่อเดือน (บาท)','allowance',e.allowance,'number','min="0" step="1"')}${formField('วันที่เริ่มงาน','startDate',e.startDate,'date')}<div class="field full"><label>งานรับผิดชอบ / หมายเหตุ</label><textarea class="textarea" name="notes">${h(e.notes)}</textarea></div><button type="submit" class="hidden"></button></form>`;if(id)deleteAction=`<button class="button danger" data-action="delete-employee" data-id="${h(id)}">${ic('trash')} ลบพนักงาน</button>`}
- if(modal.type==='plan-employee'){const e=data.employees.find(x=>x.id===id);if(!e)return '';const c=scenario().changes[id]||{};title=`ปรับแผน: ${e.name}`;body=`<div class="alert blue" style="margin-bottom:17px">นี่คือการจำลองเฉพาะแผน “${h(scenario().name)}” ไม่ใช่การสั่งเลิกจ้างหรือปรับเงินเดือนจริง</div><form id="modalForm" data-type="plan-employee" class="form-grid"><div class="field full"><label>การดำเนินการในแผน</label><select class="select" name="decision" id="decisionSelect"><option value="keep" ${c.decision!=='exit'?'selected':''}>คงไว้ / ปรับค่าตอบแทน</option><option value="exit" ${c.decision==='exit'?'selected':''}>เสนอให้ออก (จำลอง)</option></select></div><div class="field"><label>รายงานต่อในแผนนี้</label><select class="select" name="managerOverride">${managerOptions(c.managerOverride!==undefined?c.managerOverride:e.managerId,id)}</select></div>${formField('เงินเดือนใหม่ (บาท) — เว้นว่างถ้าเท่าเดิม','salaryOverride',c.salaryOverride??'','number','min="0" step="1"')}<div class="field"><label>เดือนที่มีผล (1–12)</label><input class="input" type="number" min="1" max="12" step="1" name="effectiveMonth" value="${num(c.effectiveMonth)||1}"><div class="hint">การปรับเงินเดือนคำนวณตั้งแต่เดือนแรก ส่วนเดือนนี้ใช้กับการออกจากงาน</div></div>${formField('ค่าใช้จ่ายออกจากงานครั้งเดียว (บาท)','oneTimeCost',num(c.oneTimeCost),'number','min="0" step="1"')}<div class="field full"><label>การส่งมอบงาน / ผู้รับผิดชอบต่อ</label><textarea class="textarea" name="handover" placeholder="ใครรับงานลูกค้า เคส และเอกสารต่อ">${h(c.handover)}</textarea></div><div class="field full"><label>หมายเหตุสำหรับแผน</label><textarea class="textarea" name="notes">${h(c.notes)}</textarea></div><button type="submit" class="hidden"></button></form>`;deleteAction=`<button class="button" data-action="clear-plan-person" data-id="${h(id)}">คืนค่าเป็นคงไว้</button>`}
+ if(modal.type==='plan-employee'){const e=data.employees.find(x=>x.id===id);if(!e)return '';const c=scenario().changes[id]||{};title=`ปรับแผน: ${e.name}`;body=`<div class="alert blue" style="margin-bottom:17px">นี่คือการจำลองเฉพาะแผน “${h(scenario().name)}” ไม่ใช่การสั่งเลิกจ้างหรือปรับเงินเดือนจริง</div><form id="modalForm" data-type="plan-employee" class="form-grid"><div class="field full"><label>การดำเนินการในแผน</label><select class="select" name="decision" id="decisionSelect"><option value="keep" ${c.decision!=='exit'?'selected':''}>คงไว้ / ปรับค่าตอบแทน</option><option value="exit" ${c.decision==='exit'?'selected':''}>เสนอให้ออก (จำลอง)</option></select></div><div class="field"><label>รายงานต่อในแผนนี้</label><select class="select" name="managerOverride">${managerOptions(c.managerOverride!==undefined?c.managerOverride:e.managerId,id)}</select></div>${formField('เงินเดือนใหม่ (บาท) — เว้นว่างถ้าเท่าเดิม','salaryOverride',c.salaryOverride??'','number','min="0" step="1"')}${formField('เริ่มปรับเงินเดือนเดือนที่ (1–12)','salaryEffectiveMonth',num(c.salaryEffectiveMonth)||1,'number','min="1" max="12" step="1"')}<div class="field"><label>เดือนที่มีผล (1–12)</label><input class="input" type="number" min="1" max="12" step="1" name="effectiveMonth" value="${num(c.effectiveMonth)||1}"><div class="hint">การปรับเงินเดือนคำนวณตั้งแต่เดือนแรก ส่วนเดือนนี้ใช้กับการออกจากงาน</div></div>${formField('ค่าใช้จ่ายออกจากงานครั้งเดียว (บาท)','oneTimeCost',num(c.oneTimeCost),'number','min="0" step="1"')}<div class="field full"><label>การส่งมอบงาน / ผู้รับผิดชอบต่อ</label><textarea class="textarea" name="handover" placeholder="ใครรับงานลูกค้า เคส และเอกสารต่อ">${h(c.handover)}</textarea></div><div class="field full"><label>หมายเหตุสำหรับแผน</label><textarea class="textarea" name="notes">${h(c.notes)}</textarea></div><button type="submit" class="hidden"></button></form>`;deleteAction=`<button class="button" data-action="clear-plan-person" data-id="${h(id)}">คืนค่าเป็นคงไว้</button>`}
  if(modal.type==='hire'){const e=scenario().hires.find(x=>x.id===id)||{name:'',role:'',dept:depts[0],salary:20000,allowance:0,managerId:'',startMonth:1,oneTimeCost:0,notes:''};title=id?'แก้ไขตำแหน่งรับใหม่':'เพิ่มตำแหน่งที่ต้องการรับ';body=`<form id="modalForm" data-type="hire" class="form-grid">${studioRoleModalField(e.role,'ตำแหน่งที่ต้องการรับ / ระดับ')}${formField('ชื่อผู้สมัคร (เว้นว่างได้)','name',e.name,'text','maxlength="100"')}<div class="field"><label>แผนก</label><select name="dept" class="select">${options(studioDepartmentNames(),e.dept)}</select></div><div class="field"><label>รายงานต่อ (อัปเดตตามเส้นที่ลาก)</label><select class="select" name="managerId">${managerOptions(e.managerId,id)}</select></div>${formField('เงินเดือนเป้าหมาย (บาท)','salary',e.salary,'number','required min="0" step="1"')}${formField('เบี้ยเลี้ยงรายเดือน (บาท)','allowance',e.allowance,'number','min="0" step="1"')}${formField('เริ่มงานเดือนที่ (1–12)','startMonth',e.startMonth,'number','required min="1" max="12" step="1"')}${formField('ค่าใช้จ่ายสรรหา / เริ่มงาน (บาท)','oneTimeCost',e.oneTimeCost,'number','min="0" step="1"')}<div class="field full"><label>ขอบเขตงานที่ต้องรับผิดชอบ</label><textarea name="notes" class="textarea">${h(e.notes)}</textarea></div><button type="submit" class="hidden"></button></form>`;if(id)deleteAction=`<button class="button danger" data-action="delete-hire" data-id="${h(id)}">${ic('trash')} ยกเลิกตำแหน่ง</button>`}
  if(modal.type==='scenario'){title='สร้างแผนใหม่';body=`<form id="modalForm" data-type="scenario" class="form-grid"><div class="field full"><label>ชื่อแผน</label><input class="input" name="name" value="แผนใหม่ ${data.scenarios.length+1}" required maxlength="70"></div><div class="field full"><label>คำอธิบายแผน</label><textarea class="textarea" name="notes" placeholder="เช่น ลดต้นทุนทีมขายและเพิ่มทีม PX"></textarea></div><button class="hidden" type="submit"></button></form>`}
  if(modal.type==='rename-scenario'){title='แก้ไขชื่อแผน';body=`<form id="modalForm" data-type="rename-scenario" class="form-grid"><div class="field full"><label>ชื่อแผน</label><input class="input" name="name" value="${h(scenario().name)}" required maxlength="70"></div><div class="field full"><label>คำอธิบาย</label><textarea class="textarea" name="notes">${h(scenario().notes)}</textarea></div><button type="submit" class="hidden"></button></form>`}
@@ -926,7 +997,7 @@ case 'clear-all':if(confirmAction('ล้างข้อมูลทั้งห
 }}
 function formSubmit(form){const f=Object.fromEntries(new FormData(form).entries());const type=form.dataset.type,prevId=modal?.id;
  if(type==='employee'){if(!f.name.trim()||!f.role.trim()){toast('กรอกชื่อและตำแหน่งก่อน');return}const newE={id:prevId||uid(),name:f.name.trim(),role:f.role.trim(),dept:f.dept,salary:Math.max(0,num(f.salary)),allowance:Math.max(0,num(f.allowance)),managerId:f.managerId||'',startDate:f.startDate||'',notes:f.notes||''};if(prevId){data.employees=data.employees.map(e=>e.id===prevId?newE:e)}else data.employees.push(newE);}
- if(type==='plan-employee'){const c={decision:f.decision==='exit'?'exit':'keep',salaryOverride:f.salaryOverride===''?null:Math.max(0,num(f.salaryOverride)),managerOverride:f.managerOverride||'',effectiveMonth:Math.max(1,Math.min(12,Math.round(num(f.effectiveMonth)||1))),oneTimeCost:Math.max(0,num(f.oneTimeCost)),handover:f.handover||'',notes:f.notes||''};scenario().changes[prevId]=c;}
+ if(type==='plan-employee'){const c={decision:f.decision==='exit'?'exit':'keep',salaryOverride:f.salaryOverride===''?null:Math.max(0,num(f.salaryOverride)),salaryEffectiveMonth:Math.max(1,Math.min(12,Math.round(num(f.salaryEffectiveMonth)||1))),managerOverride:f.managerOverride||'',effectiveMonth:Math.max(1,Math.min(12,Math.round(num(f.effectiveMonth)||1))),oneTimeCost:Math.max(0,num(f.oneTimeCost)),handover:f.handover||'',notes:f.notes||''};scenario().changes[prevId]=c;}
  if(type==='hire'){if(!f.role.trim()){toast('กรอกตำแหน่งก่อน');return}const e={id:prevId||uid(),role:f.role.trim(),name:f.name.trim(),dept:f.dept,salary:Math.max(0,num(f.salary)),allowance:Math.max(0,num(f.allowance)),managerId:f.managerId||'',startMonth:Math.max(1,Math.min(12,Math.round(num(f.startMonth)||1))),oneTimeCost:Math.max(0,num(f.oneTimeCost)),notes:f.notes||''};if(prevId)scenario().hires=scenario().hires.map(x=>x.id===prevId?e:x);else scenario().hires.push(e);}
  if(type==='scenario'){const s={id:uid(),name:f.name.trim(),notes:f.notes||'',changes:{},hires:[]};data.scenarios.push(s);data.currentScenario=s.id;}
  if(type==='rename-scenario'){scenario().name=f.name.trim();scenario().notes=f.notes||'';}
@@ -1311,7 +1382,7 @@ document.addEventListener('dragleave',e=>{const card=e.target.closest('.org-card
 document.addEventListener('dragend',()=>{dragId=null;$$('.org-card').forEach(c=>c.classList.remove('dragging','drop-target'))});
 document.addEventListener('drop',e=>{const card=e.target.closest('.org-card');$$('.org-card').forEach(c=>c.classList.remove('dragging','drop-target'));if(!card||!dragId||dragId===card.dataset.id){dragId=null;return}e.preventDefault();const from=dragId,to=card.dataset.id;dragId=null;const arr=orgMode==='planned'?plannedStaff():data.employees;const map=new Map(arr.map(x=>[x.id,x]));let check=to,seen=new Set();while(check&&!seen.has(check)){if(check===from){toast('ไม่สามารถย้ายลูกทีมไปอยู่ใต้สายของตนเองได้');return}seen.add(check);check=map.get(check)?.managerId}if(orgMode==='current'){const e=data.employees.find(x=>x.id===from);if(e)e.managerId=to}else{const hire=scenario().hires.find(x=>x.id===from);if(hire)hire.managerId=to;else{scenario().changes[from]=scenario().changes[from]||{};scenario().changes[from].managerOverride=to}}save();render();toast('ย้ายสายรายงานในผังเรียบร้อย')});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal)closeModal()});
-save();render();
+data.scenarios.forEach(studioFinanceFor);save();render();
 })();
 </script>
 </body>

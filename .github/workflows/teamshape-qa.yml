@@ -1,0 +1,39 @@
+name: TeamShape browser QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'public/**'
+      - 'qa/**'
+      - '.github/workflows/teamshape-qa.yml'
+  workflow_dispatch:
+jobs:
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Run local site
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory public > /tmp/teamshape-server.log 2>&1 &
+          sleep 2
+      - name: Browser QA
+        run: node qa/smoke.mjs
+      - name: Upload QA screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teamshape-browser-qa
+          path: qa-artifacts/
+          retention-days: 7

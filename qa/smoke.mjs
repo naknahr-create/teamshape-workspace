@@ -273,7 +273,8 @@ try{
     const v=document.querySelector('#studioViewport').getBoundingClientRect();
     const node=[...document.querySelectorAll('.studio-node')].find(n=>{
       const r=n.getBoundingClientRect(),x=r.left+r.width*.45,y=r.top+r.height*.5;
-      return x>v.left+28&&x<v.right-28&&y>v.top+46&&y<v.bottom-58;
+      if(!(x>v.left+28&&x<v.right-28&&y>v.top+46&&y<v.bottom-58))return false;
+      return document.elementFromPoint(x,y)?.closest('.studio-node')===n;
     });
     if(!node)return null;
     const r=node.getBoundingClientRect();

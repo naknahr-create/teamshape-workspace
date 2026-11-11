@@ -93,6 +93,20 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
 .studio-canvas-tools .studio-edge-tool.active{color:#076f63;background:#d9f2e9}
 .studio-edge-toolbar{display:none!important}
 @media(max-width:690px){.studio-edge-panel{right:7px;top:48px;width:min(272px,calc(100% - 14px));padding:10px}.studio-canvas-tools{left:8px;bottom:12px}.studio-canvas-tools .studio-edge-tool{min-width:60px;padding:5px}}
+
+/* v2.4: multi-object select and marquee */
+.studio-viewport{user-select:none;-webkit-user-select:none}
+.studio-selection-rect{position:absolute;display:none;z-index:10;border:2px solid #058c80;background:#06a78b1e;pointer-events:none}
+.studio-node.studio-node-multi{border:2px solid #079e89!important;outline:2px solid #16b49a44;box-shadow:0 0 0 4px #19ba991e}
+.studio-multiselect-bar{position:absolute;left:50%;top:11px;transform:translateX(-50%);z-index:17;align-items:center;gap:6px;background:#fff;padding:6px 9px;border:1px solid #a8d5c9;border-radius:10px;box-shadow:0 7px 24px #194a3c22;white-space:nowrap;font-size:11px;max-width:calc(100% - 14px)}
+.studio-multiselect-bar strong{color:#066f61}
+.studio-multiselect-bar button{cursor:pointer;border:1px solid #b8ddcf;background:#e7f5ef;color:#116f5e;border-radius:7px;padding:6px 9px;font-weight:650;font-size:11px}
+.studio-multiselect-bar button.danger{background:#ffefed;border-color:#f0c3bc;color:#b23b32}
+.studio-canvas-tools .studio-marquee-tool{width:auto;min-width:86px;font-size:11px;font-weight:750;padding:5px 10px}
+.studio-multi-inspector{padding:16px}
+.studio-multi-inspector .selected-row{font-size:11px;padding:7px 0;border-bottom:1px solid #e8efec;color:#4d6c64}
+.studio-multi-inspector .studio-action{width:100%;margin-top:10px}
+@media(max-width:700px){.studio-multiselect-bar{top:8px;padding:5px 7px;gap:4px}.studio-multiselect-bar button{padding:5px}.studio-canvas-tools .studio-marquee-tool{min-width:60px;font-size:10px;padding:4px}}
 </style>
 </head>
 <body>
@@ -273,6 +287,7 @@ function modalHTML(){let title='',body='',footer='',deleteAction='';const id=mod
 // TeamShape Canvas Studio v2: a persistent, pannable, zoomable canvas
 let studioSelected='e1', studioTool='select', studioSearch='', studioLeftOpen=false, studioRightOpen=false;
 let studioSelectedEdge='', studioEdgeGesture=null;
+let studioMultiNodes=new Set(),studioMultiEdges=new Set();
 let studioCamera={x:0,y:0,z:.78},studioCameraInitialized=false,studioPositions={},studioGesture=null,studioSuppressClick=false;
 const studioW=256,studioH=126;
 function studioPeople(){const s=scenario();let rows=data.employees.map(e=>{const ch=s.changes[e.id]||{};if(orgMode==='current')return {...e,studioExit:false,planned:false};return {...e,salary:ch.salaryOverride!=null&&ch.salaryOverride!==''?num(ch.salaryOverride):num(e.salary),managerId:ch.managerOverride!==undefined?ch.managerOverride:e.managerId,studioExit:ch.decision==='exit',planned:false}});if(orgMode==='planned')rows.push(...s.hires.map(e=>({...e,name:e.name||'ตำแหน่งว่าง',studioExit:false,planned:true})));return rows;}
@@ -313,12 +328,13 @@ function studioPaths(rows){
   const g=studioEdgeGeometry(e);if(!g)return '';
   const id=h(e.id);
   const d='M '+g.start.x+' '+g.start.y+' C '+g.c1.x+' '+g.c1.y+', '+g.c2.x+' '+g.c2.y+', '+g.end.x+' '+g.end.y;
-  const selected=studioSelectedEdge===e.id;
+  const selected=studioSelectedEdge===e.id||studioMultiEdges.has(e.id);
+  const focusHandle=studioSelectedEdge===e.id;
   const stroke=e.planned?'#35a68f':e.studioExit?'#d8a2a0':'#b2c5c5';
   let out='<path class="studio-edge-visible'+(selected?' studio-edge-active':'')+'" d="'+d+'" stroke="'+stroke+'" stroke-width="2" stroke-dasharray="'+(e.planned||e.studioExit?'7 7':'none')+'" fill="none"/>';
   const z=Math.max(.35,studioCamera.z),hitWidth=Math.max(34,24/z);
   out+='<path class="studio-edge-hit" data-edge-to="'+id+'" aria-label="คลิกเส้นเพื่อแก้ไข" stroke-width="'+hitWidth+'" d="'+d+'"/>';
-  if(selected){
+  if(focusHandle){
    const mid=studioEdgeMidpoint(g),r=Math.max(12,10/z);
    out+='<path class="studio-edge-guide" d="M '+g.start.x+' '+g.start.y+' L '+g.c1.x+' '+g.c1.y+' M '+g.end.x+' '+g.end.y+' L '+g.c2.x+' '+g.c2.y+'"/>';
    out+='<circle class="studio-edge-handle" data-edge-to="'+id+'" data-edge-handle="c1" cx="'+g.c1.x+'" cy="'+g.c1.y+'" r="'+r+'" aria-label="ดัดเส้นฝั่งหัวหน้า"/>';
@@ -365,8 +381,19 @@ function studioDrawEdges(){
  studioUpdateMinimap();
 }
 function studioAvatar(e){const names=['#dfecea','#e4e8f3','#f4e9e0','#e8efe0','#eae5f4'];const n=(e.name||e.role||'?').split('').reduce((t,c)=>t+c.charCodeAt(0),0);return `<span class="studio-avatar" style="background:${names[n%names.length]}">${h((e.name||e.role||'?').slice(0,2))}</span>`}
-function studioCard(e){const pos=studioPositions[e.id]||{x:0,y:0};return `<div class="studio-node ${e.planned?'studio-hire':''} ${e.studioExit?'studio-exit':''} ${studioSelected===e.id?'studio-node-selected':''}" data-node-id="${h(e.id)}" style="left:${pos.x}px;top:${pos.y}px" tabindex="0" role="button" aria-label="เลือก ${h(e.name)} ${h(e.role)}"><div class="studio-node-accent"></div><div class="studio-node-top">${studioAvatar(e)}<div class="studio-node-identity"><b>${h(e.name)}</b><span>${h(e.role)}</span></div><span class="studio-node-menu">•••</span></div><div class="studio-node-foot"><span>${h(e.dept)}</span><strong>${money(num(e.salary)+num(e.allowance))}</strong></div>${e.planned?'<span class="studio-node-flag new">+ จ้างใหม่</span>':e.studioExit?'<span class="studio-node-flag exit">− เสนอให้ออก</span>':''}<span class="studio-port top" data-port="in" title="จุดรับเส้นจากหัวหน้า"></span><span class="studio-port bottom" data-port="out" title="ลากจากจุดนี้ไปยังลูกทีม"></span></div>`;}
-function studioInspector(){const e=studioPeople().find(x=>x.id===studioSelected);const s=scenario(),st=stats();if(!e)return `<div class="studio-ins-head"><div class="studio-side-eyebrow">INSPECTOR</div><h3>ภาพรวมแผน</h3><p>คลิกการ์ดบนผังเพื่อดูรายละเอียด หรือปรับโครงสร้างจากด้านขวา</p></div><div class="studio-ins-body"><div class="studio-mini-title">สรุปจำนวนคน</div><div class="studio-metric-row"><span>พนักงานปัจจุบัน</span><b>${data.employees.length} คน</b></div><div class="studio-metric-row"><span>เสนอให้ออก</span><b class="negative">${st.changed} คน</b></div><div class="studio-metric-row"><span>จ้างใหม่</span><b class="positive">${st.hires} คน</b></div><div class="studio-divider"></div><div class="studio-mini-title">แผนการรับคน</div>${s.hires.map(x=>`<button class="studio-ins-row" data-action="focus-node" data-id="${h(x.id)}"><b>${h(x.role)}</b><span>${money(x.salary)}</span></button>`).join('')||'<p class="studio-placeholder">ยังไม่มีตำแหน่งใหม่</p>'}<button class="studio-action" data-action="add-hire">${ic('plus')} เพิ่มตำแหน่งที่ต้องรับ</button><div class="studio-divider"></div><div class="studio-mini-title">งบประมาณ</div><form id="quickBudgetForm" class="studio-field"><label>งบต้นทุนต่อเดือน (บาท)</label><div class="studio-inline-field"><input name="budget" type="number" value="${num(data.settings.budget)}" min="0" step="1"><button type="submit" aria-label="บันทึกงบประมาณ">${ic('check')}</button></div></form><div class="studio-mini-note">ระบบคำนวณตามเงินเดือน/เบี้ยเลี้ยง และต้นทุนนายจ้าง ${num(data.settings.employerRate)}%</div></div>`;
+function studioCard(e){const pos=studioPositions[e.id]||{x:0,y:0};return `<div class="studio-node ${e.planned?'studio-hire':''} ${e.studioExit?'studio-exit':''} ${studioMultiNodes.has(e.id)||(!studioMultiNodes.size&&studioSelected===e.id)?'studio-node-selected':''} ${studioMultiNodes.has(e.id)?'studio-node-multi':''}" data-node-id="${h(e.id)}" style="left:${pos.x}px;top:${pos.y}px" tabindex="0" role="button" aria-label="เลือก ${h(e.name)} ${h(e.role)}"><div class="studio-node-accent"></div><div class="studio-node-top">${studioAvatar(e)}<div class="studio-node-identity"><b>${h(e.name)}</b><span>${h(e.role)}</span></div><span class="studio-node-menu">•••</span></div><div class="studio-node-foot"><span>${h(e.dept)}</span><strong>${money(num(e.salary)+num(e.allowance))}</strong></div>${e.planned?'<span class="studio-node-flag new">+ จ้างใหม่</span>':e.studioExit?'<span class="studio-node-flag exit">− เสนอให้ออก</span>':''}<span class="studio-port top" data-port="in" title="จุดรับเส้นจากหัวหน้า"></span><span class="studio-port bottom" data-port="out" title="ลากจากจุดนี้ไปยังลูกทีม"></span></div>`;}
+function studioMultiInspector(){
+ const rows=studioPeople(),map=new Map(rows.map(e=>[e.id,e]));
+ const sel=rows.filter(e=>studioMultiNodes.has(e.id)),incoming=sel.filter(e=>e.managerId&&map.has(e.managerId)).length;
+ return '<div class="studio-ins-head"><div class="studio-side-eyebrow">MULTI SELECTION</div><h3>เลือกหลายรายการ '+studioSelectionCount()+'</h3><p>ลากการ์ดที่เลือกเพื่อย้ายกลุ่ม หรือจัดการสายรายงานพร้อมกัน</p></div>'
+ +'<div class="studio-multi-inspector"><div class="studio-mini-title">การ์ดที่เลือก ('+sel.length+')</div>'
+ +(sel.map(e=>'<div class="selected-row">'+h(e.name)+' · '+h(e.role)+'</div>').join('')||'<p>ไม่ได้เลือกการ์ด</p>')
+ +'<p style="font-size:11px;margin:12px 0">เส้นที่เลือก '+studioMultiEdges.size+' · เส้นจากการ์ด '+incoming+'</p>'
+ +'<button class="studio-action danger" data-action="selection-unlink">ตัดเส้นของรายการที่เลือก</button>'
+ +'<button class="studio-action" data-action="selection-clear">ยกเลิกการเลือกทั้งหมด</button>'
+ +'<div class="studio-mini-note">ไม่ลบพนักงานและเงินเดือน</div></div>';
+}
+function studioInspector(){if(studioSelectionCount()>=2)return studioMultiInspector();const e=studioPeople().find(x=>x.id===studioSelected);const s=scenario(),st=stats();if(!e)return `<div class="studio-ins-head"><div class="studio-side-eyebrow">INSPECTOR</div><h3>ภาพรวมแผน</h3><p>คลิกการ์ดบนผังเพื่อดูรายละเอียด หรือปรับโครงสร้างจากด้านขวา</p></div><div class="studio-ins-body"><div class="studio-mini-title">สรุปจำนวนคน</div><div class="studio-metric-row"><span>พนักงานปัจจุบัน</span><b>${data.employees.length} คน</b></div><div class="studio-metric-row"><span>เสนอให้ออก</span><b class="negative">${st.changed} คน</b></div><div class="studio-metric-row"><span>จ้างใหม่</span><b class="positive">${st.hires} คน</b></div><div class="studio-divider"></div><div class="studio-mini-title">แผนการรับคน</div>${s.hires.map(x=>`<button class="studio-ins-row" data-action="focus-node" data-id="${h(x.id)}"><b>${h(x.role)}</b><span>${money(x.salary)}</span></button>`).join('')||'<p class="studio-placeholder">ยังไม่มีตำแหน่งใหม่</p>'}<button class="studio-action" data-action="add-hire">${ic('plus')} เพิ่มตำแหน่งที่ต้องรับ</button><div class="studio-divider"></div><div class="studio-mini-title">งบประมาณ</div><form id="quickBudgetForm" class="studio-field"><label>งบต้นทุนต่อเดือน (บาท)</label><div class="studio-inline-field"><input name="budget" type="number" value="${num(data.settings.budget)}" min="0" step="1"><button type="submit" aria-label="บันทึกงบประมาณ">${ic('check')}</button></div></form><div class="studio-mini-note">ระบบคำนวณตามเงินเดือน/เบี้ยเลี้ยง และต้นทุนนายจ้าง ${num(data.settings.employerRate)}%</div></div>`;
 const original=data.employees.find(x=>x.id===e.id),ch=original?changeFor(e.id):{},isCurrent=orgMode==='current';const status=e.planned?'ตำแหน่งจ้างใหม่':e.studioExit?'เสนอให้ออก':isCurrent?'พนักงานปัจจุบัน':'คงไว้ในแผน';const selectedSalary=(num(e.salary)+num(e.allowance));const manager=studioPeople().find(x=>x.id===e.managerId);return `<div class="studio-ins-head"><div class="studio-side-eyebrow">INSPECTOR / SELECTED PERSON</div><div class="studio-ins-profile">${studioAvatar(e)}<div><h3>${h(e.name)}</h3><p>${h(e.role)}</p></div></div><div class="studio-status ${e.studioExit?'danger':e.planned?'new':''}">${status}</div></div><div class="studio-ins-body"><div class="studio-mini-title">รายละเอียดตำแหน่ง</div><div class="studio-field"><label>ชื่อพนักงาน / ตำแหน่งว่าง</label><div class="studio-static">${h(e.name)}</div></div><div class="studio-field"><label>หน้าที่ / ตำแหน่ง</label><div class="studio-static">${h(e.role)}</div></div><div class="studio-field"><label>ทีม / แผนก</label><div class="studio-static">${h(e.dept)}</div></div><div class="studio-field"><label>รายงานต่อ</label><div class="studio-static">${h(manager?manager.name+' · '+manager.role:'— สูงสุดในสายงาน —')}</div></div><div class="studio-field"><label>จำนวนลูกทีมโดยตรง</label><div class="studio-static">${studioPeople().filter(x=>x.managerId===e.id).length} คน</div></div><div class="studio-divider"></div><div class="studio-mini-title">ค่าตอบแทน</div><div class="studio-big-salary">${money(selectedSalary)} <span>/ เดือน</span></div><div class="studio-metric-row"><span>เงินเดือนฐาน</span><b>${money(e.salary)}</b></div><div class="studio-metric-row"><span>เบี้ยเลี้ยง</span><b>${money(e.allowance)}</b></div>${original&&!isCurrent&&ch.salaryOverride!=null?`<div class="studio-metric-row"><span>เงินเดือนปัจจุบัน</span><b>${money(original.salary)}</b></div>`:''}<div class="studio-divider"></div><div class="studio-mini-title">แก้ไขจากผังองค์กร</div>${e.managerId?`<button class="studio-action" data-action="disconnect-manager" data-id="${h(e.id)}">ตัดเส้นเชื่อมกับหัวหน้า</button>`:""}<button class="studio-action primary" data-action="${e.planned?'edit-hire':isCurrent?'edit-employee':'plan-employee'}" data-id="${h(e.id)}">${ic('edit')} ${e.planned?'แก้ไขแผนจ้างใหม่':isCurrent?'แก้ข้อมูลพนักงานปัจจุบัน':'ปรับแผน / เงินเดือน / หัวหน้า'}</button>${original&&!isCurrent?`<button class="studio-action ${e.studioExit?'good':'danger'}" data-action="toggle-exit" data-id="${h(e.id)}">${ic('users')} ${e.studioExit?'คืนพนักงานเข้าแผน':'จำลองให้ออก'}</button>`:''}${!e.planned?`<button class="studio-action" data-action="edit-employee" data-id="${h(e.id)}">${ic('file')} แก้ข้อมูลต้นฉบับ</button>`:''}<div class="studio-mini-note">ตำแหน่ง X ${Math.round((studioPositions[e.id]||{}).x||0)} / Y ${Math.round((studioPositions[e.id]||{}).y||0)} · ลากการ์ดเพื่อจัดระยะได้</div></div>`;}
 function studioListItem(e){const exit=orgMode==='planned'&&changeFor(e.id).decision==='exit';const active=studioSelected===e.id;return `<button class="studio-roster-row ${active?'active':''}" data-action="focus-node" data-id="${h(e.id)}">${studioAvatar(e)}<span><b>${h(e.name)}</b><small>${h(e.role)}</small></span>${exit?'<i class="studio-small-exit"></i>':''}</button>`;}
 function renderCanvasStudio(){const st=stats(),rows=studioPeople(),base=st.current,plan=st.month12.planned,delta=base-plan,search=studioSearch.toLowerCase(),filtered=data.employees.filter(e=>[e.name,e.role,e.dept].join(' ').toLowerCase().includes(search));studioPositions=studioPositionMap(rows);if(studioSelected&&!rows.some(x=>x.id===studioSelected))studioSelected='';const s=scenario();return `<div class="studio-shell">
@@ -374,8 +401,8 @@ function renderCanvasStudio(){const st=stats(),rows=studioPeople(),base=st.curre
 <div class="studio-subbar"><div class="studio-main-label"><div class="studio-page-head">Organization Canvas</div><span class="studio-label-tag">WORKSPACE</span></div><div class="studio-scenario-picker"><span>แผนปัจจุบัน</span>${scenarioSelect()}<button class="studio-icon-button" data-action="new-scenario" title="สร้างแผนใหม่">${ic('plus')}</button><button class="studio-icon-button" data-action="clone-scenario" title="ทำสำเนาแผน">${ic('copy')}</button></div><span class="studio-subbar-spacer"></span><div class="studio-stat"><span>ต้นทุนเดิม</span><strong>${money(base)}</strong></div><div class="studio-stat"><span>ต้นทุนหลังปรับ</span><strong>${money(plan)}</strong></div><div class="studio-stat studio-stat-green ${delta<0?'is-cost':''}"><span>${delta>=0?'ประหยัด/เดือน':'ต้นทุนเพิ่ม/เดือน'}</span><strong>${delta>=0?'+':'−'}${money(Math.abs(delta))}</strong></div></div>
 <div class="studio-main">
 <aside class="studio-left ${studioLeftOpen?'studio-mobile-open':''}"><div class="studio-side-top"><div class="studio-side-eyebrow">LAYERS / TEAM</div><h3>โครงสร้างทีม <span>${data.employees.length}</span></h3><div class="studio-search">${ic('search')}<input id="employeeSearch" placeholder="ค้นหาคนหรือตำแหน่ง" value="${h(studioSearch)}" autocomplete="off"></div></div><div class="studio-roster-scroll"><div class="studio-roster-heading">พนักงานปัจจุบัน <span>${filtered.length}</span></div>${filtered.length?filtered.map(studioListItem).join(''):'<div class="studio-placeholder">ไม่พบรายชื่อ</div>'}<div class="studio-roster-heading" style="margin-top:16px">ตำแหน่งรับเพิ่ม <span>${s.hires.length}</span></div>${s.hires.map(e=>`<button class="studio-roster-row future ${studioSelected===e.id?'active':''}" data-action="focus-node" data-id="${h(e.id)}">${studioAvatar({...e,name:e.name||'ตำแหน่งว่าง'})}<span><b>${h(e.role)}</b><small>${money(e.salary)} / เดือน</small></span></button>`).join('')||'<div class="studio-placeholder">ยังไม่มีตำแหน่งที่วางแผนรับเพิ่ม</div>'}</div><div class="studio-sidebar-footer"><button class="studio-action" data-action="add-hire">${ic('plus')} เพิ่มตำแหน่งใหม่</button><div class="studio-side-links"><button data-action="export-csv">${ic('download')} ส่งออก CSV</button><button data-action="template-csv">ไฟล์ตัวอย่าง</button></div></div></aside>
-<section class="studio-center" aria-label="ผังองค์กร Canvas"><div class="studio-canvas-header"><div class="studio-mode"><button data-action="org-mode" data-mode="planned" class="${orgMode==='planned'?'active':''}">ผังตามแผน</button><button data-action="org-mode" data-mode="current" class="${orgMode==='current'?'active':''}">ผังปัจจุบัน</button></div><span class="studio-canvas-headnote">ลาก ● เพื่อเชื่อมคน · คลิกเส้นเพื่อแก้ไข/ลบ · ลากจุดจับเพื่อดัดเส้น · ลากการ์ดเพื่อจัดตำแหน่ง</span><span class="studio-canvas-fill"></span><button class="studio-icon-button studio-mobile-only" data-action="mobile-people" title="รายชื่อ">${ic('users')}</button><button class="studio-icon-button studio-mobile-only" data-action="mobile-inspector" title="รายละเอียด">${ic('settings')}</button></div>
-<div id="studioViewport" class="studio-viewport ${studioTool==='hand'?'hand-mode':''}"><div class="studio-canvas-background"></div><div id="studioWorld" class="studio-world"><svg id="studioEdges" class="studio-edges" width="3400" height="3200" viewBox="0 0 3400 3200">${studioPaths(rows)}</svg><div id="studioEdgeToolbar" class="studio-edge-toolbar" aria-label="แก้ไขเส้นเชื่อม"></div>${rows.map(studioCard).join('')}</div><div class="studio-canvas-caption"><span class="studio-canvas-dot"></span> ${h(s.name)} <span>·</span> ${rows.length} การ์ดบน Canvas ${data.demo?'· ข้อมูลตัวอย่าง':''}</div>${studioEdgePanelHTML(rows)}<div class="studio-canvas-tools"><button class="${studioTool==='select'?'active':''}" data-action="tool-select" title="เลือก / ลากการ์ด">${ic('edit')}</button><button class="${studioTool==='hand'?'active':''}" data-action="tool-hand" title="มือเลื่อนผัง">${ic('people')}</button><button class="studio-edge-tool ${studioTool==='edge'?'active':''}" data-action="tool-edge" title="เลือก ดัด และลบเส้น">↝ เส้น</button><span></span><button data-action="reset-layout" title="จัดผังใหม่อัตโนมัติ">${ic('refresh')}</button></div><div class="studio-zoom-box"><button data-action="canvas-zoom-out" title="ซูมออก">−</button><span id="studioZoomPct">${Math.round(studioCamera.z*100)}%</span><button data-action="canvas-zoom-in" title="ซูมเข้า">+</button><button class="studio-fit" data-action="canvas-fit" title="ดูทั้งผัง">Fit</button></div><div class="studio-minimap"><div class="studio-minimap-label">OVERVIEW</div><div id="studioMiniMap" class="studio-mini-content"></div></div></div>
+<section class="studio-center" aria-label="ผังองค์กร Canvas"><div class="studio-canvas-header"><div class="studio-mode"><button data-action="org-mode" data-mode="planned" class="${orgMode==='planned'?'active':''}">ผังตามแผน</button><button data-action="org-mode" data-mode="current" class="${orgMode==='current'?'active':''}">ผังปัจจุบัน</button></div><span class="studio-canvas-headnote">ใช้ ▣ เลือกหลายตัว แล้วลากกรอบคลุม · Shift+คลิกเพิ่มรายการ · ลากกลุ่มย้ายตำแหน่ง · ลบเฉพาะเส้น</span><span class="studio-canvas-fill"></span><button class="studio-icon-button studio-mobile-only" data-action="mobile-people" title="รายชื่อ">${ic('users')}</button><button class="studio-icon-button studio-mobile-only" data-action="mobile-inspector" title="รายละเอียด">${ic('settings')}</button></div>
+<div id="studioViewport" class="studio-viewport ${studioTool==='hand'?'hand-mode':''}"><div class="studio-canvas-background"></div><div id="studioWorld" class="studio-world"><svg id="studioEdges" class="studio-edges" width="3400" height="3200" viewBox="0 0 3400 3200">${studioPaths(rows)}</svg><div id="studioEdgeToolbar" class="studio-edge-toolbar" aria-label="แก้ไขเส้นเชื่อม"></div>${rows.map(studioCard).join('')}</div><div id="studioSelectionRect" class="studio-selection-rect"></div><div id="studioMultiActions" class="studio-multiselect-bar" style="display:${studioSelectionCount()?'flex':'none'}"><strong data-selection-count>${studioMultiNodes.size} การ์ด · ${studioMultiEdges.size} เส้น</strong><button data-action="selection-unlink" class="danger">ลบเส้นที่เลือก</button><button data-action="selection-clear">ยกเลิก</button></div><div class="studio-canvas-caption"><span class="studio-canvas-dot"></span> ${h(s.name)} <span>·</span> ${rows.length} การ์ดบน Canvas ${data.demo?'· ข้อมูลตัวอย่าง':''}</div>${studioEdgePanelHTML(rows)}<div class="studio-canvas-tools"><button class="${studioTool==='select'?'active':''}" data-action="tool-select" title="เลือก / ลากการ์ด">${ic('edit')}</button><button class="studio-marquee-tool ${studioTool==='marquee'?'active':''}" data-action="tool-marquee" title="ลากกรอบเลือกหลายการ์ดและเส้น">▣ เลือกหลายตัว</button><button class="${studioTool==='hand'?'active':''}" data-action="tool-hand" title="มือเลื่อนผัง">${ic('people')}</button><button class="studio-edge-tool ${studioTool==='edge'?'active':''}" data-action="tool-edge" title="เลือก ดัด และลบเส้น">↝ เส้น</button><span></span><button data-action="reset-layout" title="จัดผังใหม่อัตโนมัติ">${ic('refresh')}</button></div><div class="studio-zoom-box"><button data-action="canvas-zoom-out" title="ซูมออก">−</button><span id="studioZoomPct">${Math.round(studioCamera.z*100)}%</span><button data-action="canvas-zoom-in" title="ซูมเข้า">+</button><button class="studio-fit" data-action="canvas-fit" title="ดูทั้งผัง">Fit</button></div><div class="studio-minimap"><div class="studio-minimap-label">OVERVIEW</div><div id="studioMiniMap" class="studio-mini-content"></div></div></div>
 <div class="studio-bottom"><div class="studio-bottom-left"><span class="studio-live"></span> กำลังจำลองแผน <span class="studio-bottom-sep"></span><b>${data.employees.length} → ${st.month12.headcount} คน</b><span class="studio-bottom-sep"></span><span class="negative">−${st.changed} ออก</span><span class="positive">+${st.hires} เข้า</span></div><button class="studio-bottom-action" data-action="rename-scenario">${ic('edit')} เปลี่ยนชื่อแผน</button></div></section>
 <aside class="studio-right ${studioRightOpen?'studio-mobile-open':''}">${studioInspector()}<div class="studio-side-bottom"><div class="studio-side-eyebrow">FINANCIAL IMPACT</div><div class="studio-side-impact"><span>${st.annualSave>=0?'ประหยัดสุทธิปีแรก':'ต้นทุนสุทธิเพิ่มปีแรก'}</span><strong class="${st.annualSave>=0?'positive':'negative'}">${st.annualSave>=0?'+':'−'}${money(Math.abs(st.annualSave))}</strong></div><div class="studio-impact-grid"><div><small>จ่ายครั้งเดียว</small><b>${money(st.oneTime)}</b></div><div><small>งบต่อเดือน</small><b>${money(st.budget)}</b></div></div><div class="studio-mini-note">ตัวเลขรวมจากแผน 12 เดือน ยังไม่คำนวณค่าชดเชยตามกฎหมายอัตโนมัติ</div></div></aside>
 </div><div class="studio-footer"><span>${ic('info')} ไฟล์นี้เป็น Workspace ในเครื่อง ข้อมูลไม่ซิงก์ข้ามอุปกรณ์</span><div><span class="studio-legend current"></span> พนักงานเดิม <span class="studio-legend new"></span> จ้างเพิ่ม <span class="studio-legend exit"></span> เสนอให้ออก</div></div></div>`;}
@@ -391,10 +418,13 @@ case 'edge-close':studioSelectedEdge='';studioTool='select';render();return;
 case 'edge-focus':studioEdgeFocus();return;
 case 'edge-auto':if(studioSelectedEdge){delete studioEdgeRouteMap()[studioSelectedEdge];save();studioDrawEdges();toast('จัดเส้นให้เป็นโค้งอัตโนมัติแล้ว')}return;
 case 'edge-delete':if(studioSelectedEdge){const id=studioSelectedEdge;studioSelectedEdge='';studioDisconnectManager(id);}return;
-case 'focus-node':studioSelectedEdge='';studioSelected=el.dataset.id;studioLeftOpen=false;studioRightOpen=true;render();studioCenterNode(studioSelected);return;
+case 'focus-node':studioMultiNodes.clear();studioMultiEdges.clear();studioSelectedEdge='';studioSelected=el.dataset.id;studioLeftOpen=false;studioRightOpen=true;render();studioCenterNode(studioSelected);return;
 case 'mobile-people':studioLeftOpen=!studioLeftOpen;studioRightOpen=false;render();return;
 case 'mobile-inspector':studioRightOpen=!studioRightOpen;studioLeftOpen=false;render();return;
-case 'tool-select':studioTool='select';studioSelectedEdge='';render();return;case 'tool-hand':studioTool='hand';studioSelectedEdge='';render();return;
+case 'selection-unlink':studioSelectionUnlink();return;
+case 'selection-clear':studioSelectionClear();return;
+case 'selection-all':studioMultiNodes=new Set(studioPeople().map(x=>x.id));studioMultiEdges.clear();studioSelected=studioMultiNodes.values().next().value||'';studioSelectedEdge='';studioTool='select';render();return;
+case 'tool-select':studioTool='select';studioSelectedEdge='';render();return;case 'tool-marquee':studioTool='marquee';studioSelectedEdge='';render();return;case 'tool-hand':studioTool='hand';studioSelectedEdge='';render();return;
 case 'tool-edge':studioTool='edge';render();return;
 case 'canvas-zoom-out':studioSetZoom(studioCamera.z-.12);return;case 'canvas-zoom-in':studioSetZoom(studioCamera.z+.12);return;
 case 'canvas-fit':studioFit();return;
@@ -412,7 +442,7 @@ case 'delete-employee':if(confirmAction('ลบพนักงานออกจ
 case 'delete-hire':if(confirmAction('ยกเลิกตำแหน่งที่วางแผนรับเพิ่มนี้?')){scenario().hires=scenario().hires.filter(e=>e.id!==el.dataset.id);save();closeModal();toast('ยกเลิกตำแหน่งแล้ว')}return;
 case 'clear-plan-person':delete scenario().changes[el.dataset.id];save();closeModal();toast('คืนค่าแผนเป็นคงไว้');return;
 case 'reset-changes':if(confirmAction('คืนการปรับพนักงานปัจจุบันทั้งหมดในแผนนี้? (ยังเก็บตำแหน่งจ้างใหม่)')){scenario().changes={};save();render()}return;
-case 'org-mode':orgMode=el.dataset.mode;studioCameraInitialized=false;studioSelected='';studioSelectedEdge='';render();return;case 'zoom-in':orgZoom=Math.min(160,orgZoom+15);render();return;case 'zoom-out':orgZoom=Math.max(55,orgZoom-15);render();return;
+case 'org-mode':orgMode=el.dataset.mode;studioCameraInitialized=false;studioMultiNodes.clear();studioMultiEdges.clear();studioSelected='';studioSelectedEdge='';render();return;case 'zoom-in':orgZoom=Math.min(160,orgZoom+15);render();return;case 'zoom-out':orgZoom=Math.max(55,orgZoom-15);render();return;
 case 'download-json':download(JSON.stringify(data,null,2),'teamshape-backup.json','application/json');toast('ส่งออกไฟล์สำรอง JSON แล้ว');return;
 case 'import-json':$('#jsonInput').click();return;case 'import-csv':$('#csvInput').click();return;
 case 'export-csv':downloadCsv(data.employees,`teamshape-employees-${new Date().toISOString().slice(0,10)}.csv`);return;
@@ -436,13 +466,140 @@ async function importCSV(file){if(!file)return;try{const txt=await file.text(),r
 async function importJSON(file){if(!file)return;try{const d=JSON.parse(await file.text());if(!validData(d)||d.employees.length>10000)throw Error('รูปแบบไฟล์ไม่ถูกต้อง');if(!confirmAction('นำเข้าไฟล์สำรองจะเขียนทับข้อมูลทั้งหมดในเครื่องนี้ ต้องการดำเนินการต่อหรือไม่?'))return;data=d;normalize();if(!data.scenarios.length){data.scenarios=[{id:uid(),name:'แผนหลัก',changes:{},hires:[],notes:''}];data.currentScenario=data.scenarios[0].id}if(!data.scenarios.some(s=>s.id===data.currentScenario))data.currentScenario=data.scenarios[0].id;save();view='overview';render();toast('คืนค่าข้อมูลจาก JSON แล้ว')}catch(e){alert('ไม่สามารถนำเข้า JSON: '+e.message)}finally{$('#jsonInput').value=''}}
 document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(el){e.preventDefault();action(el.dataset.action,el)}else if(e.target?.id==='modalBackdrop')closeModal()});
 document.addEventListener('submit',e=>{if(e.target.id==='quickBudgetForm'){e.preventDefault();data.settings.budget=Math.max(0,num(new FormData(e.target).get('budget')));save();render();toast('บันทึกงบประมาณแล้ว')}if(e.target.id==='modalForm'){e.preventDefault();formSubmit(e.target)}if(e.target.id==='settingsForm'){e.preventDefault();const f=Object.fromEntries(new FormData(e.target));data.company=String(f.company||'TeamShape');data.settings.startMonth=f.startMonth||'2026-11';data.settings.budget=Math.max(0,num(f.budget));data.settings.employerRate=Math.min(100,Math.max(0,num(f.employerRate)));save();render();toast('บันทึกการตั้งค่าแล้ว')}});
-document.addEventListener('change',e=>{const t=e.target;if(t.id==='studioEdgePicker'){studioSelectedEdge=t.value;studioTool='edge';render();if(studioSelectedEdge)studioEdgeFocus();return;}if(t.id==='scenarioSelect'){data.currentScenario=t.value;studioSelected='';studioSelectedEdge='';studioCameraInitialized=false;save();render()}if(t.id==='employeeDept'){employeeDept=t.value;render()}if(t.id==='orgDept'){orgDept=t.value;render()}if(t.id==='orgModeSelect'){orgMode=t.value;render()}if(t.id==='csvInput')importCSV(t.files[0]);if(t.id==='jsonInput')importJSON(t.files[0])});
+document.addEventListener('change',e=>{const t=e.target;if(t.id==='studioEdgePicker'){studioSelectedEdge=t.value;studioTool='edge';render();if(studioSelectedEdge)studioEdgeFocus();return;}if(t.id==='scenarioSelect'){data.currentScenario=t.value;studioMultiNodes.clear();studioMultiEdges.clear();studioSelected='';studioSelectedEdge='';studioCameraInitialized=false;save();render()}if(t.id==='employeeDept'){employeeDept=t.value;render()}if(t.id==='orgDept'){orgDept=t.value;render()}if(t.id==='orgModeSelect'){orgMode=t.value;render()}if(t.id==='csvInput')importCSV(t.files[0]);if(t.id==='jsonInput')importJSON(t.files[0])});
 document.addEventListener('input',e=>{if(e.target.id==='employeeSearch'){employeeQuery=e.target.value;render()}if(e.target.id==='plannerSearch'){plannerQuery=e.target.value;render()}});
 
-function studioCanvasPointerDown(e){const vp=e.target.closest('#studioViewport');if(!vp||e.target.closest('[data-action]')||e.target.closest('.studio-minimap')||e.target.closest('.studio-edge-panel'))return;const card=e.target.closest('.studio-node');if(e.button!==0&&e.button!==1)return;if(studioSelectedEdge){studioSelectedEdge='';studioDrawEdges();}const nodeID=card?.dataset.nodeId;if(card&&studioTool==='edge'&&e.button===0){studioSelected=nodeID;studioRightOpen=true;render();return;}const isDragNode=!!nodeID&&studioTool==='select'&&e.button===0;const startPos=isDragNode?{...studioPositions[nodeID]}:null;studioGesture={type:isDragNode?'node':'pan',id:nodeID,pointer:e.pointerId,x:e.clientX,y:e.clientY,startPos,startCam:{...studioCamera},moved:false};if(card)card.setPointerCapture?.(e.pointerId);else vp.setPointerCapture?.(e.pointerId);if(isDragNode)card.classList.add('being-dragged');else vp.classList.add('is-panning');}
-function studioCanvasPointerMove(e){const g=studioGesture;if(!g||e.pointerId!==g.pointer)return;const dx=e.clientX-g.x,dy=e.clientY-g.y;if(Math.abs(dx)+Math.abs(dy)>4)g.moved=true;if(g.type==='pan'){studioCamera.x=g.startCam.x+dx;studioCamera.y=g.startCam.y+dy;studioApplyCamera()}else if(g.moved){let p={x:Math.round((g.startPos.x+dx/studioCamera.z)/10)*10,y:Math.round((g.startPos.y+dy/studioCamera.z)/10)*10};studioPositions[g.id]=p;const node=document.querySelector(`[data-node-id="${CSS.escape(g.id)}"]`);if(node){node.style.left=p.x+'px';node.style.top=p.y+'px'}studioDrawEdges()}}
-function studioCanvasPointerUp(e){const g=studioGesture;if(!g||e.pointerId!==g.pointer)return;studioGesture=null;const vp=$('#studioViewport');vp?.classList.remove('is-panning');$$('.being-dragged').forEach(e=>e.classList.remove('being-dragged'));if(g.type==='node'){if(g.moved){studioSelected=g.id;studioRightOpen=true;studioPersistPositions();render();studioSuppressClick=true;setTimeout(()=>studioSuppressClick=false,80)}else{studioSelected=g.id;studioRightOpen=true;render()}}}
 
+function studioSelectionCount(){return studioMultiNodes.size+studioMultiEdges.size;}
+function studioSelectionClear(rebuild=true){
+ studioMultiNodes.clear();studioMultiEdges.clear();studioSelectedEdge='';studioSelected='';
+ if(rebuild)render();else studioSelectionPaint();
+}
+function studioSelectionWorld(x,y){
+ const vp=$('#studioViewport'),r=vp.getBoundingClientRect();
+ return {x:(x-r.left-studioCamera.x)/studioCamera.z,y:(y-r.top-studioCamera.y)/studioCamera.z};
+}
+function studioSelectionRect(a,b){return {l:Math.min(a.x,b.x),r:Math.max(a.x,b.x),t:Math.min(a.y,b.y),b:Math.max(a.y,b.y)};}
+function studioSelectionHit(a,b){return a.l<=b.r&&a.r>=b.l&&a.t<=b.b&&a.b>=b.t;}
+function studioSelectionCards(rect){
+ const hit=new Set();
+ for(const [id,p] of Object.entries(studioPositions))
+  if(studioSelectionHit(rect,{l:p.x,r:p.x+studioW,t:p.y,b:p.y+studioH}))hit.add(id);
+ return hit;
+}
+function studioSelectionEdges(rect){
+ const hit=new Set();
+ for(const e of studioPeople()){
+  if(!e.managerId||e.managerId===e.id)continue;
+  const g=studioEdgeGeometry(e);if(!g)continue;
+  for(let i=0;i<=30;i++){
+   const t=i/30,u=1-t;
+   const x=u*u*u*g.start.x+3*u*u*t*g.c1.x+3*u*t*t*g.c2.x+t*t*t*g.end.x;
+   const y=u*u*u*g.start.y+3*u*u*t*g.c1.y+3*u*t*t*g.c2.y+t*t*t*g.end.y;
+   if(rect.l<=x&&x<=rect.r&&rect.t<=y&&y<=rect.b){hit.add(e.id);break;}
+  }
+ }
+ return hit;
+}
+function studioSelectionPaint(){
+ $('.studio-node').forEach(n=>{
+  const active=studioMultiNodes.has(n.dataset.nodeId);
+  n.classList.toggle('studio-node-multi',active);
+  n.classList.toggle('studio-node-selected',active||(!studioMultiNodes.size&&n.dataset.nodeId===studioSelected));
+ });
+ const bar=$('#studioMultiActions');if(bar){
+  bar.style.display=studioSelectionCount()?'flex':'none';
+  const label=bar.querySelector('[data-selection-count]');
+  if(label)label.textContent=studioMultiNodes.size+' การ์ด · '+studioMultiEdges.size+' เส้น';
+ }
+}
+function studioSelectionUpdateMarquee(g,x,y){
+ const box=studioSelectionRect(g.startWorld,studioSelectionWorld(x,y));
+ studioMultiNodes=new Set(g.baseNodes);studioMultiEdges=new Set(g.baseEdges);
+ for(const id of studioSelectionCards(box))studioMultiNodes.add(id);
+ for(const id of studioSelectionEdges(box))studioMultiEdges.add(id);
+ studioSelected=studioMultiNodes.values().next().value||'';studioSelectedEdge='';
+ studioSelectionPaint();studioDrawEdges();
+ const vr=$('#studioViewport').getBoundingClientRect(),el=$('#studioSelectionRect');
+ if(el){const x1=g.x-vr.left,y1=g.y-vr.top,x2=x-vr.left,y2=y-vr.top;
+  el.style.display='block';el.style.left=Math.min(x1,x2)+'px';el.style.top=Math.min(y1,y2)+'px';
+  el.style.width=Math.abs(x2-x1)+'px';el.style.height=Math.abs(y2-y1)+'px';}
+}
+function studioSelectionUnlink(){
+ const rows=studioPeople(),map=new Map(rows.map(e=>[e.id,e])),affected=new Set(studioMultiEdges);
+ for(const id of studioMultiNodes){const row=map.get(id);if(row&&row.managerId&&map.has(row.managerId))affected.add(id);}
+ const ids=[...affected].filter(id=>map.has(id)&&map.get(id).managerId);
+ if(!ids.length){toast('ไม่มีเส้นเชื่อมในรายการที่เลือก');return;}
+ if(ids.length>1&&!confirmAction('ตัดสายรายงาน '+ids.length+' เส้น โดยไม่ลบข้อมูลพนักงาน ใช่หรือไม่?'))return;
+ for(const id of ids){
+  if(orgMode==='current'){const item=data.employees.find(x=>x.id===id);if(item)item.managerId='';}
+  else{const hire=scenario().hires.find(x=>x.id===id);if(hire)hire.managerId='';
+   else{scenario().changes[id]=scenario().changes[id]||{};scenario().changes[id].managerOverride='';}}
+  delete studioEdgeRouteMap()[id];
+ }
+ studioMultiEdges.clear();studioSelectedEdge='';save();render();toast('ตัดเส้น '+ids.length+' เส้นแล้ว · ไม่ลบพนักงาน');
+}
+function studioCanvasPointerDown(e){
+ const vp=e.target.closest('#studioViewport');
+ if(!vp||e.target.closest('[data-action]')||e.target.closest('.studio-minimap')||e.target.closest('.studio-edge-panel')||e.target.closest('.studio-multiselect-bar'))return;
+ if(e.button!==0&&e.button!==1)return;
+ const card=e.target.closest('.studio-node'),id=card?.dataset.nodeId,modifier=e.shiftKey||e.ctrlKey||e.metaKey;
+ if(studioSelectedEdge){studioSelectedEdge='';studioDrawEdges();}
+ if(id&&studioTool==='edge'&&e.button===0){studioSelected=id;studioRightOpen=true;render();return;}
+ let type='pan';
+ if(e.button===0&&studioTool!=='hand')type=id?((studioTool==='marquee'||modifier)?'toggle':'node'):'marquee';
+ const priorNodes=new Set(studioMultiNodes),priorEdges=new Set(studioMultiEdges);
+ if(type==='node'&&!studioMultiNodes.has(id)){studioMultiNodes=new Set([id]);studioMultiEdges.clear();}
+ if(type==='marquee'&&!modifier){studioMultiNodes.clear();studioMultiEdges.clear();studioSelected='';studioSelectedEdge='';}
+ const origins=new Map();
+ for(const nid of (studioMultiNodes.size?studioMultiNodes:new Set(id?[id]:[]))){
+  const p=studioPositions[nid];if(p)origins.set(nid,{x:p.x,y:p.y});
+ }
+ studioGesture={type,id,pointer:e.pointerId,x:e.clientX,y:e.clientY,moved:false,
+  startWorld:studioSelectionWorld(e.clientX,e.clientY),
+  baseNodes:modifier?priorNodes:new Set(),baseEdges:modifier?priorEdges:new Set(),
+  startCam:{...studioCamera},origins};
+ try{(card||vp).setPointerCapture(e.pointerId)}catch(err){}
+ if(type==='node')card.classList.add('being-dragged');
+ else if(type==='pan')vp.classList.add('is-panning');
+ else if(type==='marquee'){$('#studioSelectionRect').style.display='block';}
+ studioSelectionPaint();
+}
+function studioCanvasPointerMove(e){
+ const g=studioGesture;if(!g||e.pointerId!==g.pointer)return;
+ const dx=e.clientX-g.x,dy=e.clientY-g.y;
+ if(Math.abs(dx)+Math.abs(dy)>4)g.moved=true;
+ if(g.type==='pan'){studioCamera.x=g.startCam.x+dx;studioCamera.y=g.startCam.y+dy;studioApplyCamera();return;}
+ if(g.type==='marquee'){if(g.moved)studioSelectionUpdateMarquee(g,e.clientX,e.clientY);return;}
+ if(g.type==='node'&&g.moved){
+  for(const [id,start] of g.origins){
+   const p={x:Math.round((start.x+dx/studioCamera.z)/10)*10,y:Math.round((start.y+dy/studioCamera.z)/10)*10};
+   studioPositions[id]=p;const node=document.querySelector('[data-node-id="'+CSS.escape(id)+'"]');
+   if(node){node.style.left=p.x+'px';node.style.top=p.y+'px';}
+  }
+  studioDrawEdges();
+ }
+}
+function studioCanvasPointerUp(e){
+ const g=studioGesture;if(!g||e.pointerId!==g.pointer)return;
+ studioGesture=null;$('#studioViewport')?.classList.remove('is-panning');
+ $$('.being-dragged').forEach(x=>x.classList.remove('being-dragged'));
+ const box=$('#studioSelectionRect');if(box)box.style.display='none';
+ if(g.type==='marquee'){
+  if(!g.moved){studioMultiNodes=new Set(g.baseNodes);studioMultiEdges=new Set(g.baseEdges);}
+  studioSelected=studioMultiNodes.values().next().value||'';studioSelectedEdge='';
+  studioRightOpen=studioSelectionCount()>0;render();return;
+ }
+ if(g.type==='toggle'){
+  if(g.id){if(studioMultiNodes.has(g.id))studioMultiNodes.delete(g.id);else studioMultiNodes.add(g.id);
+   studioSelected=studioMultiNodes.values().next().value||'';}
+  studioRightOpen=studioSelectionCount()>0;render();return;
+ }
+ if(g.type==='node'){
+  if(g.moved){studioPersistPositions();studioSuppressClick=true;setTimeout(()=>studioSuppressClick=false,80);}
+  studioSelected=g.id;studioRightOpen=true;render();
+ }
+}
 /* v2.1: Manual link drawing and hierarchy generation, independent from node repositioning. */
 let studioConnection=null;
 function studioLinkWorld(x,y){
@@ -595,6 +752,18 @@ document.addEventListener('pointercancel',function(e){
 document.addEventListener('pointerdown',studioCanvasPointerDown);document.addEventListener('pointermove',studioCanvasPointerMove);document.addEventListener('pointerup',studioCanvasPointerUp);document.addEventListener('pointercancel',studioCanvasPointerUp);
 document.addEventListener('dblclick',e=>{const card=e.target.closest('.studio-node');if(!card)return;const id=card.dataset.nodeId;studioSelected=id;showModal(scenario().hires.some(x=>x.id===id)?'hire':orgMode==='current'?'employee':'plan-employee',id)});
 document.addEventListener('wheel',e=>{const vp=e.target.closest('#studioViewport');if(!vp||e.target.closest('.studio-minimap'))return;if(e.ctrlKey||e.metaKey){e.preventDefault();studioSetZoom(studioCamera.z*(e.deltaY<0?1.1:.9),e)}else if(e.shiftKey){e.preventDefault();studioCamera.x-=e.deltaY;studioApplyCamera()}},{passive:false});
+
+document.addEventListener('keydown',function(e){
+ if(modal||e.target.closest('input,textarea,select,[contenteditable="true"]'))return;
+ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='a'){
+  e.preventDefault();e.stopImmediatePropagation();
+  studioMultiNodes=new Set(studioPeople().map(x=>x.id));studioMultiEdges.clear();studioSelected=studioMultiNodes.values().next().value||'';studioSelectedEdge='';render();return;
+ }
+ if(e.key==='Escape'&&studioSelectionCount()){e.preventDefault();e.stopImmediatePropagation();studioSelectionClear();return;}
+ if((e.key==='Delete'||e.key==='Backspace')&&studioSelectionCount()){
+  e.preventDefault();e.stopImmediatePropagation();studioSelectionUnlink();
+ }
+},true);
 document.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select')||modal)return;if(e.code==='Space'&&!e.repeat){e.preventDefault();studioTool='hand';$('#studioViewport')?.classList.add('hand-mode')}if(e.key==='Delete'&&studioSelected&&orgMode==='planned'){const original=data.employees.find(x=>x.id===studioSelected);if(original&&changeFor(original.id).decision!=='exit'){const c=scenario().changes[original.id]||{};c.decision='exit';c.effectiveMonth=1;scenario().changes[original.id]=c;save();render()}}if((e.key==='='||e.key==='+')&&e.ctrlKey){e.preventDefault();studioSetZoom(studioCamera.z+.12)}if(e.key==='-'&&e.ctrlKey){e.preventDefault();studioSetZoom(studioCamera.z-.12)}});
 document.addEventListener('keyup',e=>{if(e.code==='Space'&&studioTool==='hand'){studioTool='select';$('#studioViewport')?.classList.remove('hand-mode')}});
 

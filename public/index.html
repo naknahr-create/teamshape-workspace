@@ -856,7 +856,7 @@ case 'edge-delete':if(studioSelectedEdge){const id=studioSelectedEdge;studioSele
 case 'strategy-close':studioSelectedDept='';render();return;
 case 'department-add':studioDepartmentPendingDelete='';studioDepartmentCreateOpen=true;render();$('#studioNewDepartmentName')?.focus();return;
 case 'department-cancel':studioDepartmentCreateOpen=false;render();return;
-case 'department-delete':{const name=el.dataset.dept||studioSelectedDept;if(name){studioDepartmentPendingDelete=name;studioDepartmentCreateOpen=false;render();$('#studioDepartmentTransfer')?.focus();}return;}
+case 'department-delete':{const name=el.dataset.dept||studioSelectedDept;if(name){studioDepartmentPendingDelete=name;studioDepartmentCreateOpen=false;render();requestAnimationFrame(()=>{$('#studioDepartmentDeleteForm')?.scrollIntoView({block:'nearest',behavior:'instant'});$('#studioDepartmentTransfer')?.focus();});}return;}
 case 'department-delete-cancel':studioDepartmentPendingDelete='';render();return;
 case 'strategy-dept':studioSelectedNote='';studioSelectedDept=el.dataset.dept;studioSelected='';studioSelectedEdge='';studioTool='select';render();studioDeptFocus(studioSelectedDept);return;
 case 'strategy-add-kpi':if(studioSelectedDept){studioStrategyFor(studioSelectedDept).kpis.push({name:'',target:0,actual:0,unit:''});save();render();}return;

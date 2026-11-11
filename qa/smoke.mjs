@@ -83,6 +83,25 @@ try{
   assert.equal(state.strategy.Dealmaker.goal,'QA goal for department');
   assert.ok(state.canvasItems.some(x=>x.text==='QA sticky note'));
  });
+ await check('multi-select and group reposition',async()=>{
+  await page.locator('[data-action="selection-all"]').click();
+  assert.ok(await page.locator('#studioMultiActions').isVisible());
+  const before=await page.locator('.studio-node').evaluateAll(nodes=>nodes.slice(0,2).map(n=>Number.parseFloat(n.style.left)));
+  const first=page.locator('.studio-node').first(),box=await first.boundingBox();
+  assert.ok(box&&box.width>0);
+  await page.mouse.move(box.x+box.width*.48,box.y+box.height*.46);
+  await page.mouse.down();
+  await page.mouse.move(box.x+box.width*.48+60,box.y+box.height*.46+28,{steps:8});
+  await page.mouse.up();
+  const after=await page.locator('.studio-node').evaluateAll(nodes=>nodes.slice(0,2).map(n=>Number.parseFloat(n.style.left)));
+  assert.ok(Math.abs(after[0]-before[0])>0&&Math.abs(after[1]-before[1])>0,'both selected cards should move together');
+  await page.locator('[data-action="studio-undo"]').click();
+  const undone=await page.locator('.studio-node').evaluateAll(nodes=>nodes.slice(0,2).map(n=>Number.parseFloat(n.style.left)));
+  assert.deepEqual(undone,before,'Undo should restore both cards');
+  await page.locator('[data-action="studio-redo"]').click();
+  const redone=await page.locator('.studio-node').evaluateAll(nodes=>nodes.slice(0,2).map(n=>Number.parseFloat(n.style.left)));
+  assert.deepEqual(redone,after,'Redo should move both cards again');
+ });
  await page.screenshot({path:'qa-artifacts/desktop.png',fullPage:false});
  const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,deviceScaleFactor:2});
  mobile.on('pageerror',err=>errors.push(err.stack||String(err)));
@@ -90,6 +109,11 @@ try{
  await check('responsive mobile chart',async()=>{
   assert.ok(await mobile.locator('.studio-shell').count());
   assert.ok(await mobile.locator('.studio-node').count());
+  const bounds=await mobile.evaluate(()=>{
+   const a=document.querySelector('.studio-canvas-tools').getBoundingClientRect(),b=document.querySelector('.studio-zoom-box').getBoundingClientRect();
+   return {tools:{top:a.top,bottom:a.bottom},zoom:{top:b.top,bottom:b.bottom}};
+  });
+  assert.ok(bounds.zoom.bottom<=bounds.tools.top||bounds.tools.bottom<=bounds.zoom.top,'mobile zoom and tools must not overlap');
  });
  await mobile.screenshot({path:'qa-artifacts/mobile.png'});
  await mobile.close();

@@ -220,6 +220,28 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
 .studio-role-custom:not([hidden]){margin-top:8px}
 #modalRolePreset{width:100%}
 #modalRoleValue:not([hidden]){margin-top:10px}
+
+/* Editable baseline and plan comparison */
+.studio-finance-btn{background:#e7f6ef;color:#076e62;border:1px solid #b9dbce;border-radius:8px;padding:8px 10px;font:700 11px 'IBM Plex Sans Thai',sans-serif;cursor:pointer;white-space:nowrap;flex:none}
+.studio-finance-panel{position:fixed;z-index:60;top:137px;right:20px;width:min(445px,calc(100vw - 24px));max-height:calc(100dvh - 157px);overflow-y:auto;background:#fff;border:1px solid #bcded3;border-radius:14px;padding:16px;box-shadow:0 20px 55px #25493a38;color:#29463e;font-size:12px}
+.studio-finance-panel>header{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid #dfede6;padding-bottom:10px;font-size:15px;font-weight:800}
+.studio-finance-panel h4{font-size:12px;margin:17px 0 7px;color:#155c4f}
+.studio-finance-panel label{font-size:11px;color:#577a6d;font-weight:700;display:block;margin:10px 0 5px}
+.studio-finance-panel input,.studio-finance-panel select{border:1px solid #cde0d8;background:#fbfdfb;border-radius:8px;padding:9px 10px;width:100%;box-sizing:border-box;font:500 12px 'IBM Plex Sans Thai',sans-serif;color:#264a40}
+.studio-finance-panel input:disabled{opacity:.62;background:#edf3ee}
+.studio-finance-panel button{cursor:pointer}
+.studio-finance-close{background:#edf5f1;border:0;border-radius:7px;padding:4px 10px;font-size:16px;color:#4f7367}
+.studio-finance-note{font-size:10px;line-height:1.7;color:#718b80;margin:7px 0}
+.studio-finance-warning{background:#fff7e8;border:1px solid #e9d7ae;padding:9px;border-radius:8px;color:#84662b}
+.studio-finance-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.studio-finance-metrics>div{background:#f3faf6;border:1px solid #e3f0e9;border-radius:9px;padding:10px}
+.studio-finance-metrics small{display:block;color:#779589;font-size:10px}.studio-finance-metrics strong{font-size:15px;display:block;color:#146c5e}
+.studio-finance-actions{display:flex;gap:7px;margin-top:13px}
+.studio-finance-actions button{flex:1;border:1px solid #b8dbce;background:#f0f7f2;color:#1f7060;font:700 11px 'IBM Plex Sans Thai',sans-serif;border-radius:8px;padding:9px}
+.studio-finance-actions button[type="submit"]{background:#087f70;color:#fff}
+.studio-finance-table{width:100%;border-collapse:collapse;font-size:11px}.studio-finance-table td{padding:7px 3px;border-bottom:1px solid #e3eee9}.studio-finance-table td:last-child{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.studio-finance-months{max-height:186px;overflow:auto}.studio-finance-months table{width:100%;border-collapse:collapse;font-size:10px}.studio-finance-months th,.studio-finance-months td{text-align:right;padding:6px 3px;border-bottom:1px solid #eaf0ed;white-space:nowrap}.studio-finance-months th:first-child,.studio-finance-months td:first-child{text-align:left}.studio-finance-months th{background:#eff7f2;position:sticky;top:0}
+@media(max-width:790px){.studio-finance-panel{top:108px;right:6px;width:calc(100vw - 12px);max-height:calc(100dvh - 120px)}.studio-finance-btn{font-size:10px;padding:7px}}
 </style>
 </head>
 <body>
@@ -490,7 +512,7 @@ function modalHTML(){let title='',body='',footer='',deleteAction='';const id=mod
 
 // TeamShape Canvas Studio v2: a persistent, pannable, zoomable canvas
 let studioSelected='e1', studioTool='select', studioSearch='', studioLeftOpen=false, studioRightOpen=false;
-let studioSelectedEdge='', studioEdgeGesture=null;
+let studioSelectedEdge='', studioEdgeGesture=null,studioFinanceOpen=false;
 let studioMultiNodes=new Set(),studioMultiEdges=new Set();
 let studioSelectedDept='', studioSelectedNote='', studioNoteGesture=null, studioDepartmentCreateOpen=false, studioDepartmentPendingDelete='';
 let studioCamera={x:0,y:0,z:.78},studioCameraInitialized=false,studioPositions={},studioGesture=null,studioSuppressClick=false;
@@ -778,6 +800,39 @@ function studioRoleModalField(current,label){
  +'<input class="input studio-role-custom" id="modalRoleValue" type="text" name="role" value="'+h(role)+'" maxlength="120" placeholder="เช่น Content Creator / Sales Executive" '+(custom?'required':'hidden')+'>'
  +'<div class="hint">เลือกจาก 18 ระดับ หรือกำหนด Job Title เองได้ โดยไม่เปลี่ยนตำแหน่งเดิมอัตโนมัติ</div></div>';
 }
+
+function studioFinancePanel(){
+ const f=studioFinanceFor(),b=studioFinanceBaseline(),st=stats(),last=st.month12;
+ const signed=n=>(n>=0?'+':'−')+money(Math.abs(n));
+ const row=(label,n)=>'<tr><td>'+label+'</td><td>'+signed(n)+'</td></tr>';
+ return '<section id="studioFinancePanel" class="studio-finance-panel" aria-label="ตั้งค่าต้นทุนและเปรียบเทียบแผน">'
+ +'<header><span>ต้นทุน Before / After</span><button class="studio-finance-close" data-action="finance-close" title="ปิด">×</button></header>'
+ +'<p class="studio-finance-note">แผน: '+h(scenario().name)+' · ต้นทุนฐานล็อกแยกแต่ละ Scenario</p>'
+ +'<div class="studio-finance-metrics"><div><small>ต้นทุนฐาน / เดือน</small><strong>'+money(b.baseline)+'</strong></div><div><small>ต้นทุนหลังปรับ เดือน 12</small><strong>'+money(last.planned)+'</strong></div></div>'
+ +'<form id="studioFinanceForm"><h4>1. ต้นทุนก่อนปรับ</h4>'
+ +'<p class="studio-finance-note">ล็อกจากพนักงาน '+f.baseline.employeeCount+' คน: '+money(b.staff)+' / เดือน · '+h(new Date(b.capturedAt).toLocaleDateString('th-TH'))+'</p>'
+ +'<label>รูปแบบต้นทุนฐาน</label><select id="financeBaselineMode" name="baselineMode"><option value="auto" '+(f.mode==='auto'?'selected':'')+'>อัตโนมัติ — เงินเดือนในวันล็อกฐาน</option><option value="manual" '+(f.mode==='manual'?'selected':'')+'>กรอกยอดต้นทุนรวมเอง</option></select>'
+ +'<label>ต้นทุนรวมก่อนปรับ / เดือน (บาท)</label><input id="financeManualTotal" type="number" name="manualTotal" min="'+b.staff+'" step="0.01" value="'+(f.mode==='manual'?num(f.manualTotal):b.staff)+'" '+(f.mode==='auto'?'disabled':'')+' required>'
+ +'<p class="studio-finance-note">ต้นทุนรวมที่กรอกต้องไม่น้อยกว่าค่าจ้างที่ล็อกไว้ ส่วนเกินจะถือเป็นต้นทุนอื่นที่ยังคงอยู่ในแผนใหม่</p>'
+ +'<h4>2. ปรับต้นทุนอื่นตามแผน</h4>'
+ +'<label>เพิ่ม/ลดต้นทุนอื่นต่อเดือน (บาท) · ใส่ติดลบเพื่อลด</label><input id="financeOtherDelta" type="number" name="otherDelta" step="0.01" value="'+num(f.otherDelta)+'">'
+ +'<label>เริ่มมีผลเดือนที่</label><select name="otherEffectiveMonth">'+Array.from({length:12},(_,i)=>'<option value="'+(i+1)+'" '+(num(f.otherEffectiveMonth)===i+1?'selected':'')+'>'+h(monthLabel(monthOffset(data.settings.startMonth,i)))+'</option>').join('')+'</select>'
+ +'<div class="studio-finance-actions"><button type="submit">บันทึกต้นทุน</button><button type="button" data-action="finance-refresh-baseline">ล็อกฐานใหม่</button></div></form>'
+ +'<h4>3. ที่มาของต้นทุนหลังปรับ เดือน 12</h4><table class="studio-finance-table">'
+ +row('ต้นทุนฐานที่ล็อกไว้',b.baseline)
+ +row('ข้อมูลพนักงานต้นฉบับเปลี่ยน',last.sourceDelta)
+ +row('ลดต้นทุนจากพนักงานออก',-last.exitSavings)
+ +row('ผลจากการปรับเงินเดือน',last.salaryChangeCost)
+ +row('ต้นทุนพนักงานใหม่',last.hireCost)
+ +row('ต้นทุนอื่นที่เปลี่ยนตามแผน',last.otherChangeCost)
+ +row('ต้นทุนหลังปรับ',last.planned)
+ +'</table>'
+ +'<div class="studio-finance-metrics" style="margin-top:12px"><div><small>ประหยัดเดือน 12</small><strong>'+signed(last.monthlySavings)+'</strong></div><div><small>ประหยัดสุทธิปีแรก</small><strong>'+signed(st.annualSave)+'</strong></div></div>'
+ +'<p class="studio-finance-note studio-finance-warning">ปีแรกหักค่าใช้จ่ายครั้งเดียว '+money(st.oneTime)+' ตามที่กรอกแล้ว แต่ไม่ได้คำนวณค่าชดเชยตามกฎหมายให้อัตโนมัติ</p>'
+ +'<h4>4. ตาราง 12 เดือน</h4><div class="studio-finance-months"><table><thead><tr><th>เดือน</th><th>ฐาน</th><th>ตามแผน</th><th>ครั้งเดียว</th><th>ประหยัดสุทธิ</th></tr></thead><tbody>'
+ +st.months.map(m=>'<tr><td>'+h(m.label)+'</td><td>'+baht(m.base)+'</td><td>'+baht(m.planned)+'</td><td>'+baht(m.oneTime)+'</td><td>'+baht(m.savings)+'</td></tr>').join('')
+ +'</tbody></table></div><p class="studio-finance-note">ข้อมูลนี้ใช้สำหรับวางแผนภายใน ไม่ปรากฏใน Export สำหรับพนักงาน</p></section>';
+}
 function studioQuickInspector(e){
  const hire=scenario().hires.some(x=>x.id===e.id),planned=orgMode==='planned'&&!hire;
  const current=data.employees.find(x=>x.id===e.id);
@@ -926,7 +981,7 @@ const original=data.employees.find(x=>x.id===e.id),ch=original?changeFor(e.id):{
 function studioListItem(e){const exit=orgMode==='planned'&&changeFor(e.id).decision==='exit';const active=studioSelected===e.id;return `<button class="studio-roster-row ${active?'active':''}" data-action="focus-node" data-id="${h(e.id)}">${studioAvatar(e)}<span><b>${h(e.name)}</b><small>${h(e.role)}</small></span>${exit?'<i class="studio-small-exit"></i>':''}</button>`;}
 function renderCanvasStudio(){const st=stats(),rows=studioPeople(),base=st.current,plan=st.month12.planned,delta=base-plan,search=studioSearch.toLowerCase(),filtered=data.employees.filter(e=>[e.name,e.role,e.dept].join(' ').toLowerCase().includes(search));studioPositions=studioPositionMap(rows);if(studioSelected&&!rows.some(x=>x.id===studioSelected))studioSelected='';const s=scenario();return `<div class="studio-shell">
 <header class="studio-topbar"><div class="studio-logo">${ic('org')}</div><div class="studio-brand"><strong>TeamShape<span>.</span></strong><small>ORG STUDIO</small></div><div class="studio-divider-v"></div><div class="studio-breadcrumb"><b>${h(data.company)}</b><span>/</span>Organization Canvas</div><span class="studio-top-spacer"></span><span class="studio-saved">● <span>บันทึกในเครื่อง</span></span><button class="studio-top-quiet" data-action="import-csv" title="นำเข้า CSV">${ic('upload')} <span>นำเข้า CSV</span></button><details class="studio-share-menu"><summary>ส่งให้พนักงาน ▾</summary><div class="studio-share-list"><button data-action="export-employee-print">พิมพ์ / บันทึก PDF</button><button data-action="export-employee-html">ดาวน์โหลด HTML ดูได้ทุกเครื่อง</button><button data-action="export-employee-svg">ดาวน์โหลดผัง SVG</button><p>ปลอดเงินเดือน · ไม่มีแผนเลิกจ้าง · แสดง KPI เฉพาะแผนกที่อนุญาต</p></div></details><button class="studio-top-quiet" data-action="download-json" title="สำรอง JSON">${ic('download')} <span>สำรอง</span></button><button class="studio-top-primary" data-action="add-employee">${ic('plus')} เพิ่มพนักงาน</button></header>
-<div class="studio-subbar"><div class="studio-main-label"><div class="studio-page-head">Organization Canvas</div><span class="studio-label-tag">WORKSPACE</span></div><div class="studio-scenario-picker"><span>แผนปัจจุบัน</span>${scenarioSelect()}<button class="studio-icon-button" data-action="new-scenario" title="สร้างแผนใหม่">${ic('plus')}</button><button class="studio-icon-button" data-action="clone-scenario" title="ทำสำเนาแผน">${ic('copy')}</button></div><span class="studio-subbar-spacer"></span><div class="studio-stat"><span>ต้นทุนเดิม</span><strong>${money(base)}</strong></div><div class="studio-stat"><span>ต้นทุนหลังปรับ</span><strong>${money(plan)}</strong></div><div class="studio-stat studio-stat-green ${delta<0?'is-cost':''}"><span>${delta>=0?'ประหยัด/เดือน':'ต้นทุนเพิ่ม/เดือน'}</span><strong>${delta>=0?'+':'−'}${money(Math.abs(delta))}</strong></div></div>
+<div class="studio-subbar"><div class="studio-main-label"><div class="studio-page-head">Organization Canvas</div><span class="studio-label-tag">WORKSPACE</span></div><div class="studio-scenario-picker"><span>แผนปัจจุบัน</span>${scenarioSelect()}<button class="studio-icon-button" data-action="new-scenario" title="สร้างแผนใหม่">${ic('plus')}</button><button class="studio-icon-button" data-action="clone-scenario" title="ทำสำเนาแผน">${ic('copy')}</button></div><span class="studio-subbar-spacer"></span><div class="studio-stat"><span>ต้นทุนฐาน (ล็อกไว้)</span><strong>${money(base)}</strong></div><div class="studio-stat"><span>ต้นทุนหลังปรับ (เดือน 12)</span><strong>${money(plan)}</strong></div><div class="studio-stat studio-stat-green ${delta<0?'is-cost':''}"><span>${delta>=0?'ประหยัด/เดือน':'ต้นทุนเพิ่ม/เดือน'}</span><strong>${delta>=0?'+':'−'}${money(Math.abs(delta))}</strong></div><button class="studio-finance-btn" data-action="finance-open" title="กรอกต้นทุนเองและเปรียบเทียบรายเดือน">⚙ ปรับต้นทุน</button></div>${studioFinanceOpen?studioFinancePanel():''}
 <div class="studio-main">
 <aside class="studio-left ${studioLeftOpen?'studio-mobile-open':''}"><div class="studio-side-top"><div class="studio-side-eyebrow">LAYERS / TEAM</div><h3>โครงสร้างทีม <span>${data.employees.length}</span></h3><div class="studio-search">${ic('search')}<input id="employeeSearch" placeholder="ค้นหาคนหรือตำแหน่ง" value="${h(studioSearch)}" autocomplete="off"></div></div><div class="studio-roster-scroll"><div class="studio-dept-heading-row"><div class="studio-roster-heading">แผนก / DEPARTMENTS</div><button type="button" class="studio-add-dept" data-action="department-add">+ เพิ่มแผนก</button></div>${studioDepartmentCreateOpen?`<form id="studioDepartmentForm" class="studio-dept-create"><label for="studioNewDepartmentName">ชื่อแผนกใหม่</label><input id="studioNewDepartmentName" name="departmentName" maxlength="80" required autocomplete="off" placeholder="เช่น Business Development"><div class="studio-dept-create-actions"><button type="submit">สร้างแผนก</button><button type="button" data-action="department-cancel">ยกเลิก</button></div></form>`:''}${studioDeptDeletePanel()}${studioDeptGroups(rows).map(([n,persons])=>`<div class="studio-dept-row"><button type="button" class="studio-dept-shortcut ${studioSelectedDept===n?'active':''}" data-action="strategy-dept" data-dept="${h(n)}"><span class="studio-dept-marker" style="width:7px;height:7px;border-radius:3px;background:${studioDeptColor(n)[2]}"></span><b>${h(n)}</b><i>${persons.length}</i></button><button type="button" class="studio-dept-delete-icon" data-action="department-delete" data-dept="${h(n)}" title="ลบแผนก ${h(n)}" aria-label="ลบแผนก ${h(n)}">${ic('trash')}</button></div>`).join('')}<div class="studio-roster-heading">พนักงานปัจจุบัน <span>${filtered.length}</span></div>${filtered.length?filtered.map(studioListItem).join(''):'<div class="studio-placeholder">ไม่พบรายชื่อ</div>'}<div class="studio-roster-heading" style="margin-top:16px">ตำแหน่งรับเพิ่ม <span>${s.hires.length}</span></div>${s.hires.map(e=>`<button class="studio-roster-row future ${studioSelected===e.id?'active':''}" data-action="focus-node" data-id="${h(e.id)}">${studioAvatar({...e,name:e.name||'ตำแหน่งว่าง'})}<span><b>${h(e.role)}</b><small>${money(e.salary)} / เดือน</small></span></button>`).join('')||'<div class="studio-placeholder">ยังไม่มีตำแหน่งที่วางแผนรับเพิ่ม</div>'}</div><div class="studio-sidebar-footer"><button class="studio-action" data-action="add-hire">${ic('plus')} เพิ่มตำแหน่งใหม่</button><div class="studio-side-links"><button data-action="export-csv">${ic('download')} ส่งออก CSV</button><button data-action="template-csv">ไฟล์ตัวอย่าง</button></div></div></aside>
 <section class="studio-center" aria-label="ผังองค์กร Canvas"><div class="studio-canvas-header"><div class="studio-mode"><button data-action="org-mode" data-mode="planned" class="${orgMode==='planned'?'active':''}">ผังตามแผน</button><button data-action="org-mode" data-mode="current" class="${orgMode==='current'?'active':''}">ผังปัจจุบัน</button></div><span class="studio-canvas-headnote">ใช้ ▣ เลือกหลายตัว แล้วลากกรอบคลุม · Shift+คลิกเพิ่มรายการ · ลากกลุ่มย้ายตำแหน่ง · ลบเฉพาะเส้น</span><span class="studio-canvas-fill"></span><button class="studio-icon-button studio-mobile-only" data-action="mobile-people" title="รายชื่อ">${ic('users')}</button><button class="studio-icon-button studio-mobile-only" data-action="mobile-inspector" title="รายละเอียด">${ic('settings')}</button></div>
@@ -961,6 +1016,9 @@ case 'tool-sticky':studioTool='sticky';studioSelectedEdge='';render();toast('ค
 case 'tool-text':studioTool='text';studioSelectedEdge='';render();toast('คลิกบน Canvas เพื่อเพิ่มข้อความ');return;
 case 'tool-shape':studioTool='shape';studioSelectedEdge='';render();toast('คลิกบน Canvas เพื่อสร้างกรอบ');return;
 case 'item-select':case 'item-color':case 'item-duplicate':case 'item-delete':case 'item-deselect':studioItemAction(name,el);return;
+case 'finance-open':studioFinanceOpen=!studioFinanceOpen;render();return;
+case 'finance-close':studioFinanceOpen=false;render();return;
+case 'finance-refresh-baseline':studioRefreshBaseline();return;
 case 'focus-node':studioSelectedNote='';studioSelectedDept='';studioMultiNodes.clear();studioMultiEdges.clear();studioSelectedEdge='';studioSelected=el.dataset.id;studioLeftOpen=false;studioRightOpen=true;render();studioCenterNode(studioSelected);return;
 case 'mobile-people':studioLeftOpen=!studioLeftOpen;studioRightOpen=false;render();return;
 case 'mobile-inspector':studioRightOpen=!studioRightOpen;studioLeftOpen=false;render();return;
@@ -1010,8 +1068,21 @@ function parseCSV(text){const rows=[];let out=[],field='',quoted=false;for(let i
 async function importCSV(file){if(!file)return;try{const txt=await file.text(),rows=parseCSV(txt.replace(/^\ufeff/,''));if(rows.length<2)throw Error('ไฟล์ว่าง');const keys=rows[0].map(s=>s.trim());if(!keys.includes('name')||!keys.includes('role')||!keys.includes('salary'))throw Error('ต้องมีคอลัมน์ name, role, salary (ดาวน์โหลดไฟล์ตัวอย่างได้)');if(data.demo){if(!confirmAction('ตอนนี้เป็นข้อมูลตัวอย่าง ต้องการล้างพนักงานและแผนตัวอย่างก่อนนำเข้า CSV นี้หรือไม่?'))return;data.employees=[];data.scenarios=[{id:'s1',name:'แผนหลัก',notes:'',changes:{},hires:[]}];data.currentScenario='s1';}let added=0,updated=0;const seen=new Set();for(const row of rows.slice(1)){const obj=Object.fromEntries(keys.map((k,i)=>[k,row[i]??'']));if(!obj.name?.trim()||!obj.role?.trim())continue;let id=obj.id?.trim();if(!id||seen.has(id))id=uid();seen.add(id);const e={id,name:obj.name.trim(),role:obj.role.trim(),dept:depts.includes(obj.dept)?obj.dept:(obj.dept?.trim()||'อื่น ๆ'),salary:Math.max(0,num(obj.salary)),allowance:Math.max(0,num(obj.allowance)),managerId:obj.managerId||'',startDate:obj.startDate||'',notes:obj.notes||''};const at=data.employees.findIndex(x=>x.id===e.id);if(at>=0){data.employees[at]=e;updated++}else{data.employees.push(e);added++}}data.demo=false;save();render();toast(`นำเข้า CSV แล้ว: เพิ่ม ${added} คน · อัปเดต ${updated} คน`)}catch(e){alert('ไม่สามารถอ่าน CSV: '+e.message)}finally{$('#csvInput').value=''}}
 async function importJSON(file){if(!file)return;try{const d=JSON.parse(await file.text());if(!validData(d)||d.employees.length>10000)throw Error('รูปแบบไฟล์ไม่ถูกต้อง');if(!confirmAction('นำเข้าไฟล์สำรองจะเขียนทับข้อมูลทั้งหมดในเครื่องนี้ ต้องการดำเนินการต่อหรือไม่?'))return;data=d;normalize();if(!data.scenarios.length){data.scenarios=[{id:uid(),name:'แผนหลัก',changes:{},hires:[],notes:''}];data.currentScenario=data.scenarios[0].id}if(!data.scenarios.some(s=>s.id===data.currentScenario))data.currentScenario=data.scenarios[0].id;save();view='overview';render();toast('คืนค่าข้อมูลจาก JSON แล้ว')}catch(e){alert('ไม่สามารถนำเข้า JSON: '+e.message)}finally{$('#jsonInput').value=''}}
 document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(el){e.preventDefault();action(el.dataset.action,el)}else if(e.target?.id==='modalBackdrop')closeModal()});
-document.addEventListener('submit',e=>{if(e.target.id==='studioDepartmentForm'){e.preventDefault();studioCreateDepartment(new FormData(e.target).get('departmentName'));return;}if(e.target.id==='studioDepartmentDeleteForm'){e.preventDefault();const values=new FormData(e.target);studioDeleteDepartment(String(values.get('source')||''),String(values.get('destination')||''));return;}if(e.target.id==='studioDepartmentRenameForm'){e.preventDefault();studioRenameDepartment(studioSelectedDept,new FormData(e.target).get('departmentName'));return;}if(e.target.id==='quickBudgetForm'){e.preventDefault();data.settings.budget=Math.max(0,num(new FormData(e.target).get('budget')));save();render();toast('บันทึกงบประมาณแล้ว')}if(e.target.id==='modalForm'){e.preventDefault();formSubmit(e.target)}if(e.target.id==='settingsForm'){e.preventDefault();const f=Object.fromEntries(new FormData(e.target));data.company=String(f.company||'TeamShape');data.settings.startMonth=f.startMonth||'2026-11';data.settings.budget=Math.max(0,num(f.budget));data.settings.employerRate=Math.min(100,Math.max(0,num(f.employerRate)));save();render();toast('บันทึกการตั้งค่าแล้ว')}});
+document.addEventListener('submit',e=>{
+ if(e.target.id==='studioFinanceForm'){
+  e.preventDefault();
+  const form=new FormData(e.target),fin=studioFinanceFor(),staff=num(fin.baseline.monthlyStaff);
+  const mode=String(form.get('baselineMode')||'auto'),manual=mode==='manual'?Number(form.get('manualTotal')):staff;
+  const delta=Number(form.get('otherDelta')),effective=Number(form.get('otherEffectiveMonth'));
+  if(!Number.isFinite(manual)||manual<staff){toast('ต้นทุนรวมต้องไม่ต่ำกว่าค่าจ้างที่ล็อกไว้ '+money(staff));return;}
+  if(!Number.isFinite(delta)||manual-staff+delta < -0.001){toast('ต้นทุนอื่นในแผนไม่สามารถติดลบได้');return;}
+  fin.mode=mode;if(mode==='manual')fin.manualTotal=manual;
+  fin.otherDelta=delta;fin.otherEffectiveMonth=Math.max(1,Math.min(12,Math.round(effective)||1));
+  save();render();toast('บันทึกต้นทุนแล้ว');return;
+ }
+ if(e.target.id==='studioDepartmentForm'){e.preventDefault();studioCreateDepartment(new FormData(e.target).get('departmentName'));return;}if(e.target.id==='studioDepartmentDeleteForm'){e.preventDefault();const values=new FormData(e.target);studioDeleteDepartment(String(values.get('source')||''),String(values.get('destination')||''));return;}if(e.target.id==='studioDepartmentRenameForm'){e.preventDefault();studioRenameDepartment(studioSelectedDept,new FormData(e.target).get('departmentName'));return;}if(e.target.id==='quickBudgetForm'){e.preventDefault();data.settings.budget=Math.max(0,num(new FormData(e.target).get('budget')));save();render();toast('บันทึกงบประมาณแล้ว')}if(e.target.id==='modalForm'){e.preventDefault();formSubmit(e.target)}if(e.target.id==='settingsForm'){e.preventDefault();const f=Object.fromEntries(new FormData(e.target));data.company=String(f.company||'TeamShape');data.settings.startMonth=f.startMonth||'2026-11';data.settings.budget=Math.max(0,num(f.budget));data.settings.employerRate=Math.min(100,Math.max(0,num(f.employerRate)));save();render();toast('บันทึกการตั้งค่าแล้ว')}});
 document.addEventListener('change',e=>{const t=e.target;
+if(t.id==='financeBaselineMode'){const input=$('#financeManualTotal');if(input){input.disabled=t.value!=='manual';if(t.value==='manual'&&!input.value)input.value=studioFinanceBaseline().staff;}return;}
 if(t.hasAttribute('data-role-preset-quick')){
  const id=t.getAttribute('data-role-preset-quick');
  if(t.value==='__custom__'){

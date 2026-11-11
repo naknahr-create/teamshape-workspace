@@ -243,7 +243,7 @@ try{
   assert.ok((await page.locator('.studio-subbar').innerText()).includes('ต้นทุนก่อนปรับ'));
  });
  await check('inactive employee from card reduces planned payroll but never deletes employee',async()=>{
-  await page.locator('[data-action="selection-clear"]').first().click().catch(()=>{});
+  if(await page.locator('#studioMultiActions').isVisible())await page.locator('#studioMultiActions [data-action="selection-clear"]').click();
   await page.locator('.studio-roster-row[data-action="focus-node"][data-id="e1"]').click();
   const key='teamshape-workforce-v1';
   const before=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);

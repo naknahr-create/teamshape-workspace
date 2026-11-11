@@ -847,12 +847,13 @@ function studioSelectionUnlink(){
  }
  studioMultiEdges.clear();studioSelectedEdge='';save();render();toast('ตัดเส้น '+ids.length+' เส้นแล้ว · ไม่ลบพนักงาน');
 }
-function studioCanvasPointerDown(e){if(e.target.closest('.studio-department-head,.studio-canvas-item'))return;
-if(['sticky','text','shape'].includes(studioTool)&&!e.target.closest('.studio-node')&&e.button===0){const p=studioSelectionWorld(e.clientX,e.clientY);studioItemCreate(studioTool,p.x,p.y);return;}
+function studioCanvasPointerDown(e){if(e.target.closest('.studio-department-head,.studio-canvas-item,input,textarea,[contenteditable="true"]'))return;
+if(['sticky','text','shape'].includes(studioTool)&&e.target.closest('#studioViewport')&&!e.target.closest('[data-action],.studio-canvas-tools,.studio-zoom-box,.studio-minimap,.studio-edge-panel,.studio-multiselect-bar')&&!e.target.closest('.studio-node')&&e.button===0){const p=studioSelectionWorld(e.clientX,e.clientY);studioItemCreate(studioTool,p.x,p.y);return;}
  const vp=e.target.closest('#studioViewport');
  if(!vp||e.target.closest('[data-action]')||e.target.closest('.studio-minimap')||e.target.closest('.studio-edge-panel')||e.target.closest('.studio-multiselect-bar'))return;
  if(e.button!==0&&e.button!==1)return;
  const card=e.target.closest('.studio-node'),id=card?.dataset.nodeId,modifier=e.shiftKey||e.ctrlKey||e.metaKey;
+if(card){studioSelectedNote='';studioSelectedDept='';}
  if(studioSelectedEdge){studioSelectedEdge='';studioDrawEdges();}
  if(id&&studioTool==='edge'&&e.button===0){studioSelected=id;studioRightOpen=true;render();return;}
  let type='pan';
@@ -1062,7 +1063,7 @@ document.addEventListener('pointercancel',function(e){
 /* Capture drag exclusively on note header, without triggering canvas marquee or pan. */
 document.addEventListener('pointerdown',function(e){
  const handle=e.target.closest('[data-note-drag]');
- if(!handle||e.button!==0)return;
+ if(!handle||e.button!==0||e.target.closest('[data-action]'))return;
  const note=(data.canvasItems||[]).find(n=>n.id===handle.dataset.noteDrag);
  if(!note)return;
  e.preventDefault();e.stopImmediatePropagation();
@@ -1089,7 +1090,7 @@ document.addEventListener('pointercancel',function(e){
 },true);
 
 document.addEventListener('pointerdown',studioCanvasPointerDown);document.addEventListener('pointermove',studioCanvasPointerMove);document.addEventListener('pointerup',studioCanvasPointerUp);document.addEventListener('pointercancel',studioCanvasPointerUp);
-document.addEventListener('dblclick',e=>{const card=e.target.closest('.studio-node');if(!card)return;const id=card.dataset.nodeId;studioSelected=id;showModal(scenario().hires.some(x=>x.id===id)?'hire':orgMode==='current'?'employee':'plan-employee',id)});
+document.addEventListener('dblclick',e=>{const card=e.target.closest('.studio-node');if(!card)return;const id=card.dataset.nodeId;studioSelectedDept='';studioSelectedNote='';studioSelected=id;studioRightOpen=true;render();const field=e.target.closest('.studio-node-foot')?'salary':e.target.closest('.studio-node-identity')?'name':'role';const input=document.querySelector('[data-quick-field="'+field+'"]');if(input){input.focus();input.select?.();}});
 document.addEventListener('wheel',e=>{const vp=e.target.closest('#studioViewport');if(!vp||e.target.closest('.studio-minimap'))return;if(e.ctrlKey||e.metaKey){e.preventDefault();studioSetZoom(studioCamera.z*(e.deltaY<0?1.1:.9),e)}else if(e.shiftKey){e.preventDefault();studioCamera.x-=e.deltaY;studioApplyCamera()}},{passive:false});
 
 document.addEventListener('keydown',function(e){

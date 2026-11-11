@@ -74,7 +74,10 @@ try{
   state=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')));
   assert.ok(state.employees.some(e=>e.dept==='QA Innovation'),'New department must be assignable from Inspector');
   await page.locator('.studio-dept-shortcut[data-dept="QA Innovation"]').click();
-  assert.ok(await page.locator('[data-action="department-delete"]').isDisabled(),'Deleting nonempty department must be blocked');
+  await page.locator('.studio-dept-delete-icon[data-dept="QA Innovation"]').click();
+  assert.ok(await page.locator('#studioDepartmentDeleteForm').isVisible(),'Delete confirmation panel opens for populated departments');
+  assert.equal(await page.locator('#studioDepartmentTransfer').getAttribute('required'),'','Reassignment is required');
+  await page.locator('[data-action="department-delete-cancel"]').click();
   await page.locator('#studioDepartmentRenameForm input[name="departmentName"]').fill('QA Innovation Office');
   await page.locator('#studioDepartmentRenameForm button[type="submit"]').click();
   state=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')));

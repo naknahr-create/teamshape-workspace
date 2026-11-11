@@ -114,6 +114,38 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
 <div class="fb-alert"><strong>กำลังแสดงตัวอย่างแบบอ่านอย่างเดียว</strong><div style="margin-top:4px">หากเปิดไฟล์นี้ผ่านพรีวิวเอกสารของ iPhone ระบบอาจไม่อนุญาตให้ JavaScript ทำงาน การ์ดจึงกดหรือลากไม่ได้ในหน้าพรีวิวนี้ ต้องเปิดผ่านเว็บเบราว์เซอร์ที่รองรับ หรือใช้ตัวทดลองในแชต</div></div></div></div></div>
 <input id="csvInput" type="file" accept=".csv,text/csv" class="hidden">
 <input id="jsonInput" type="file" accept=".json,application/json" class="hidden">
+<script id="teamshape-secure-import">
+(()=>{'use strict';
+if(!location.hash.startsWith('#v1.'))return;
+const hash=location.hash.slice(1);
+history.replaceState(null,'',location.pathname+location.search);
+const decode=s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(s.length/4)*4,'=')),c=>c.charCodeAt(0));
+(async()=>{
+const segments=hash.split('.');if(segments.length!==4)throw Error('ลิงก์นำเข้าข้อมูลไม่สมบูรณ์');
+const key=await crypto.subtle.importKey('raw',decode(segments[1]),'AES-GCM',false,['decrypt']);
+const buffer=await crypto.subtle.decrypt({name:'AES-GCM',iv:decode(segments[2]),additionalData:new TextEncoder().encode('teamshape-import-v1')},key,decode(segments[3]));
+const content=await new Response(new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+const payload=JSON.parse(content),employees=payload.employees;
+if(payload.schema!=='teamshape-import-v1'||!Array.isArray(employees)||employees.length!==payload.count||employees.length>5000)throw Error('จำนวนพนักงานไม่ถูกต้อง');
+const ids=new Set();let sum=0;for(const e of employees){if(!e.id||!e.name||!e.role||!e.dept||!Number.isFinite(e.salary)||e.salary<0||ids.has(e.id))throw Error('ข้อมูลบางรายการไม่สมบูรณ์');ids.add(e.id);sum+=e.salary;}
+if(sum!==payload.salaryTotal)throw Error('ฐานเงินเดือนรวมไม่ตรงกับต้นฉบับ');
+const storageKey='teamshape-workforce-v1',raw=localStorage.getItem(storageKey);let prev=null;try{prev=raw?JSON.parse(raw):null}catch{}
+if(prev?.demo===false&&prev.employees?.length){
+const same=prev.employees.length===employees.length&&prev.employees.every((e,i)=>e.id===employees[i].id&&Number(e.salary)===employees[i].salary);
+if(same){alert(`นำเข้าชุดนี้ไว้แล้ว: ${employees.length} คน / ${sum.toLocaleString('th-TH')} บาทต่อเดือน`);return;}
+if(!confirm(`พบข้อมูลพนักงานเดิมในเครื่องนี้! ต้องการสำรองและแทนที่ด้วย ${employees.length} คน / ${sum.toLocaleString('th-TH')} บาทต่อเดือน หรือไม่?`))return;
+}
+if(raw){try{localStorage.setItem('teamshape-import-backup-'+Date.now(),raw)}catch{}}
+const d={version:'2.0.0',company:prev?.company||'DEAL! — พื้นที่วางแผน',demo:false,
+settings:{employerRate:0,budget:0,startMonth:'2026-11'},employees,
+scenarios:[{id:'s1',name:'แผนหลัก — พนักงานจริง',notes:'นำเข้าจาก NAKNA วันที่ 11 พฤศจิกายน 2569',changes:{},hires:[]}],currentScenario:'s1'};
+localStorage.setItem(storageKey,JSON.stringify(d));
+const result=JSON.parse(localStorage.getItem(storageKey)||'null');
+if(!result||result.employees.length!==employees.length||result.employees.reduce((s,e)=>s+Number(e.salary),0)!==sum)throw Error('บันทึกข้อมูลไม่สำเร็จ');
+location.reload();
+})().catch(e=>alert('นำเข้าข้อมูลไม่สำเร็จ: '+e.message));
+})();
+</script>
 <script>
 (()=>{'use strict';
 const VERSION='2.0.0', KEY='teamshape-workforce-v1';

@@ -694,7 +694,7 @@ function studioQuickInspector(e){
  +'<div class="studio-inline-editor"><div class="studio-inline-help">แก้ในช่องนี้ได้ทันที · กด Enter หรือออกจากช่องเพื่อบันทึก</div>'
  +field('name','ชื่อพนักงาน',e.name)
  +field('role','ตำแหน่ง',e.role)
- +'<div class="studio-field"><label>แผนก</label><input data-quick-id="'+h(e.id)+'" data-quick-field="dept" list="studioDepartments" value="'+h(e.dept||'')+'"><datalist id="studioDepartments">'+studioDepartmentNames().map(d=>'<option value="'+h(d)+'"></option>').join('')+'</datalist></div>'
+ +'<div class="studio-field"><label>แผนก</label><select data-quick-id="'+h(e.id)+'" data-quick-field="dept" aria-label="เลือกแผนกของพนักงาน">'+studioDepartmentNames().map(d=>'<option value="'+h(d)+'" '+(d===e.dept?'selected':'')+'>'+h(d)+'</option>').join('')+'</select><div class="studio-inline-help">แสดงทุกแผนกที่มีในระบบ · เพิ่มแผนกใหม่ได้จากแถบด้านซ้าย</div></div>'
  +'<div class="studio-field"><label>รายงานต่อ</label><select data-quick-id="'+h(e.id)+'" data-quick-field="managerId"><option value="">— ไม่มีหัวหน้า —</option>'+managerOptions+'</select></div>'
  +'<div class="studio-inline-two">'+field('salary','เงินเดือนฐาน (บาท)',e.salary,'type="number" min="0" step="1"')
  +field('allowance','เบี้ยเลี้ยง (บาท)',e.allowance,'type="number" min="0" step="1"')+'</div>'
@@ -712,7 +712,7 @@ function studioQuickSave(id,key,value){
  else value=String(value||'').trim();
  if(key==='name'&&!value){toast('ต้องระบุชื่อพนักงาน');return}
  if(key==='role'&&!value){toast('ต้องระบุตำแหน่ง');return}
- if(key==='dept'&&!value){toast('ต้องระบุแผนก');return}
+ if(key==='dept'&&(!value||!studioDepartmentNames().includes(value))){toast('กรุณาเลือกแผนกที่มีอยู่จากรายการ');render();return}
  if(key==='managerId'&&value){
   const map=new Map(studioPeople().map(e=>[e.id,e]));let cur=value,seen=new Set();
   while(cur&&!seen.has(cur)){if(cur===id){toast('เลือกหัวหน้าไม่ได้ เพราะจะเกิดสายบังคับบัญชาวนกลับ');render();return}seen.add(cur);cur=map.get(cur)?.managerId||'';}

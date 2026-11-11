@@ -282,6 +282,33 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
 .studio-node.studio-hire .studio-node-menu{font-size:10px;color:#268474;font-weight:800}
 .studio-hire-review-hint{background:#e8f8f1;border:1px solid #c5e5d7;border-radius:8px;padding:10px 11px;font-size:11px;color:#386f61;line-height:1.65}
 @media(max-width:780px){.studio-top-forecast{padding:8px;font-size:10px}.studio-forecast-tile{width:190px;padding:8px;top:58px;gap:7px}.studio-forecast-tile .studio-forecast-icon{width:28px;height:28px;font-size:17px}.studio-forecast-tile strong{font-size:10px}.studio-forecast-tile small{font-size:9px}}
+
+/* Per-person salary comparison on the org card and direct scenario-only salary editor */
+.studio-node-salary-change{display:flex;flex-direction:column;align-items:flex-end;gap:2px;max-width:145px;min-width:0;text-align:right}
+.studio-node-salary-change small{font-size:9px;color:#829b93;white-space:nowrap;line-height:1.2}
+.studio-node-salary-change s{color:#9baea8;text-decoration-color:#b5c8c2}
+.studio-node-salary-change strong{font-size:11px;color:#176d60;font-weight:850;white-space:nowrap}
+.studio-node-salary-change.is-increase strong{color:#b26b38}
+.studio-node-salary-change.is-off strong{color:#b9574e}
+.studio-node-flag.salary-drop{background:#e0f6e9;color:#11785f;border:1px solid #bce5d0;border-top:0}
+.studio-node-flag.salary-rise{background:#fff4e8;color:#a46c34;border:1px solid #f0d8b6;border-top:0}
+.studio-salary-comparison{background:#f2f9f5;border:1px solid #cbe6d8;border-radius:11px;padding:13px;margin:12px 0}
+.studio-salary-comparison h4{font-size:12px;font-weight:800;margin:0 0 11px;color:#245c50}
+.studio-salary-summary{display:flex;justify-content:space-between;gap:9px;align-items:center;padding:7px 0;font-size:11px;color:#66877a}
+.studio-salary-summary strong{font-size:14px;color:#264c43}
+.studio-salary-summary .is-muted{color:#849d93;font-size:13px}
+.studio-salary-summary.total{border-top:1px solid #d5e9df;margin-top:7px;padding-top:10px}
+.studio-salary-summary.total strong{color:#107f69;font-weight:850}
+.studio-salary-summary.total.is-rise strong{color:#b6783b}
+.studio-salary-comparison label{font-size:11px;font-weight:750;color:#426c61;display:block;margin:11px 0 5px}
+.studio-salary-comparison input,.studio-salary-comparison select{width:100%;padding:10px;background:#fff;border:1px solid #bddbce;border-radius:8px;box-sizing:border-box;color:#204b41;font:650 13px 'IBM Plex Sans Thai',sans-serif}
+.studio-salary-comparison input:focus,.studio-salary-comparison select:focus{outline:2px solid #0e987b25;border-color:#178979}
+.studio-salary-comparison .studio-salary-action{width:100%;background:#fff;border:1px solid #b7d9cb;border-radius:8px;padding:9px;color:#37796a;font-size:11px;font-weight:700;cursor:pointer;margin-top:9px}
+.studio-salary-history{border-top:1px solid #d6e8de;margin-top:13px;padding-top:10px}
+.studio-salary-history b{display:block;font-size:11px;color:#50736a;margin-bottom:5px}
+.studio-salary-history-item{display:flex;gap:8px;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e0eee5;font-size:10px;color:#5a8276;line-height:1.5}
+.studio-salary-history-item strong{color:#244a41;white-space:nowrap}
+.studio-salary-history-item small{display:block;font-size:9px;color:#8ca69b}
 </style>
 </head>
 <body>
@@ -678,7 +705,7 @@ function studioDrawEdges(){
  studioUpdateMinimap();
 }
 function studioAvatar(e){const names=['#dfecea','#e4e8f3','#f4e9e0','#e8efe0','#eae5f4'];const n=(e.name||e.role||'?').split('').reduce((t,c)=>t+c.charCodeAt(0),0);return `<span class="studio-avatar" style="background:${names[n%names.length]}">${h((e.name||e.role||'?').slice(0,2))}</span>`}
-function studioCard(e){const pos=studioPositions[e.id]||{x:0,y:0};return `<div class="studio-node ${e.planned?'studio-hire':''} ${e.studioExit?'studio-exit':''} ${studioMultiNodes.has(e.id)||(!studioMultiNodes.size&&studioSelected===e.id)?'studio-node-selected':''} ${studioMultiNodes.has(e.id)?'studio-node-multi':''}" data-node-id="${h(e.id)}" style="left:${pos.x}px;top:${pos.y}px" tabindex="0" role="button" aria-label="เลือก ${h(e.name)} ${h(e.role)}"><div class="studio-node-accent"></div><div class="studio-node-top">${studioAvatar(e)}<div class="studio-node-identity"><b>${h(e.name)}</b><span>${h(e.role)}</span></div>${e.planned?'<span class="studio-node-menu">ว่าง / รอรับ</span>':`<button type="button" class="studio-person-status-toggle ${e.studioExit?'is-off':'is-on'}" data-action="toggle-active" data-id="${h(e.id)}" title="${e.studioExit?'เปิดพนักงานกลับมาในแผน':'ปิดใช้งานเฉพาะในแผนเพื่อจำลองลดต้นทุน'}" aria-label="${e.studioExit?'เปิดใช้งานในแผน':'ปิดใช้งานในแผน'} ${h(e.name)}">${e.studioExit?'○ ปิด':'● เปิด'}</button>`}</div><div class="studio-node-foot"><span>${h(e.dept)}</span><strong>${e.studioExit?'0 ฿/เดือน':money(num(e.salary)+num(e.allowance))}</strong></div>${e.planned?'<span class="studio-node-flag new">+ คาดว่าจะรับ · เริ่มเดือนที่ ${Math.max(1,num(e.startMonth)||1)}</span>':e.studioExit?`<span class="studio-node-flag exit">ปิดในแผน · ลด ${money(studioEmployeePlanCost(e))}/เดือน</span>`:''}<span class="studio-port top" data-port="in" title="จุดรับเส้นจากหัวหน้า"></span><span class="studio-port bottom" data-port="out" title="ลากจากจุดนี้ไปยังลูกทีม"></span></div>`;}
+function studioCard(e){const pos=studioPositions[e.id]||{x:0,y:0};return `<div class="studio-node ${e.planned?'studio-hire':''} ${e.studioExit?'studio-exit':''} ${studioMultiNodes.has(e.id)||(!studioMultiNodes.size&&studioSelected===e.id)?'studio-node-selected':''} ${studioMultiNodes.has(e.id)?'studio-node-multi':''}" data-node-id="${h(e.id)}" style="left:${pos.x}px;top:${pos.y}px" tabindex="0" role="button" aria-label="เลือก ${h(e.name)} ${h(e.role)}"><div class="studio-node-accent"></div><div class="studio-node-top">${studioAvatar(e)}<div class="studio-node-identity"><b>${h(e.name)}</b><span>${h(e.role)}</span></div>${e.planned?'<span class="studio-node-menu">ว่าง / รอรับ</span>':`<button type="button" class="studio-person-status-toggle ${e.studioExit?'is-off':'is-on'}" data-action="toggle-active" data-id="${h(e.id)}" title="${e.studioExit?'เปิดพนักงานกลับมาในแผน':'ปิดใช้งานเฉพาะในแผนเพื่อจำลองลดต้นทุน'}" aria-label="${e.studioExit?'เปิดใช้งานในแผน':'ปิดใช้งานในแผน'} ${h(e.name)}">${e.studioExit?'○ ปิด':'● เปิด'}</button>`}</div><div class="studio-node-foot"><span>${h(e.dept)}</span>${studioSalaryCard(e)}</div>${e.planned?'<span class="studio-node-flag new">+ คาดว่าจะรับ · เริ่มเดือนที่ ${Math.max(1,num(e.startMonth)||1)}</span>':e.studioExit?`<span class="studio-node-flag exit">ปิดในแผน · ลด ${money(monthlyCost(data.employees.find(x=>x.id===e.id)||e))}/เดือน</span>`:studioSalaryCardFlag(e)}<span class="studio-port top" data-port="in" title="จุดรับเส้นจากหัวหน้า"></span><span class="studio-port bottom" data-port="out" title="ลากจากจุดนี้ไปยังลูกทีม"></span></div>`;}
 function studioMultiInspector(){
  const rows=studioPeople(),map=new Map(rows.map(e=>[e.id,e]));
  const sel=rows.filter(e=>studioMultiNodes.has(e.id)),incoming=sel.filter(e=>e.managerId&&map.has(e.managerId)).length;
@@ -922,6 +949,81 @@ function studioPersonPlanPanel(e){
  +(oneTime?' · มีค่าใช้จ่ายครั้งเดียว '+money(oneTime)+' ตามแผนเดิม':'')
  +'</p></div>';
 }
+
+function studioSalaryBase(e){
+ const snapshot=studioFinanceFor().baseline?.employees?.find(row=>row.id===e.id);
+ const master=data.employees.find(row=>row.id===e.id);
+ return num(snapshot?.salary??master?.salary??e.salary);
+}
+function studioSalaryPlanned(e){
+ const master=data.employees.find(row=>row.id===e.id);
+ const ch=changeFor(e.id);
+ return ch.salaryOverride!==null&&ch.salaryOverride!==undefined&&ch.salaryOverride!==''?num(ch.salaryOverride):num(master?.salary??e.salary);
+}
+function studioSalaryDifference(e){return studioSalaryPlanned(e)-studioSalaryBase(e);}
+function studioSalaryCard(e){
+ if(e.planned)return '<strong>'+money(num(e.salary)+num(e.allowance))+'</strong>';
+ const old=studioSalaryBase(e),newSalary=studioSalaryPlanned(e),difference=newSalary-old;
+ if(e.studioExit)return '<div class="studio-node-salary-change is-off"><small>ฐานเดิม '+money(old)+'</small><strong>ในแผน 0 ฿</strong></div>';
+ if(Math.abs(difference)<.001)return '<strong>'+money(num(e.salary)+num(e.allowance))+'</strong>';
+ return '<div class="studio-node-salary-change '+(difference>0?'is-increase':'is-decrease')+'"><small>ฐานเดิม <s>'+money(old)+'</s></small><strong>แผนใหม่ '+money(newSalary)+'</strong></div>';
+}
+function studioSalaryCardFlag(e){
+ if(e.planned||e.studioExit)return '';
+ const diff=studioSalaryDifference(e);
+ if(Math.abs(diff)<.001)return '';
+ const rate=Math.max(0,num(data.settings.employerRate));
+ const employerCost=Math.abs(diff)*(1+rate/100);
+ const action=diff<0?'ลด':'เพิ่ม';
+ return '<span class="studio-node-flag '+(diff<0?'salary-drop':'salary-rise')+'">'+(diff<0?'↓':'↑')+' '+action+'เงินเดือน '+money(Math.abs(diff))+'/เดือน'
+ +(rate>0?' · ต้นทุนนายจ้าง '+money(employerCost):'')+'</span>';
+}
+function studioSalaryHistoryFor(id){
+ const records=scenario().salaryHistory||[];
+ return records.filter(entry=>entry.employeeId===id).slice(-8).reverse();
+}
+function studioRecordSalaryChange(id,before,after,effectiveMonth,source){
+ if(Math.abs(num(after)-num(before))<.001)return;
+ const sc=scenario();
+ sc.salaryHistory=Array.isArray(sc.salaryHistory)?sc.salaryHistory:[];
+ sc.salaryHistory.push({id:uid(),employeeId:id,before:num(before),after:num(after),effectiveMonth:Math.max(1,Math.min(12,Math.round(num(effectiveMonth)||1))),source:source||'Inspector',at:new Date().toISOString()});
+}
+function studioSavePlannedSalary(id,raw){
+ const employee=data.employees.find(row=>row.id===id);
+ if(!employee){toast('ไม่พบข้อมูลพนักงาน');return;}
+ const textValue=String(raw??'').trim();
+ const planned=textValue===''?studioSalaryBase(employee):Number(textValue);
+ if(!Number.isFinite(planned)||planned<0){toast('เงินเดือนที่ปรับต้องเป็นตัวเลขไม่ติดลบ');render();return;}
+ const before=studioSalaryPlanned(employee);
+ const ch=scenario().changes[id]||{};
+ if(Math.abs(before-planned)<.001){render();return;}
+ ch.salaryOverride=Math.abs(planned-num(employee.salary))<.001?null:planned;
+ if(!ch.salaryEffectiveMonth)ch.salaryEffectiveMonth=1;
+ scenario().changes[id]=ch;
+ studioRecordSalaryChange(id,before,planned,ch.salaryEffectiveMonth,'แก้จาก Inspector');
+ studioSelected=id;save();render();
+ toast('บันทึกเงินเดือนตามแผน: '+money(before)+' → '+money(planned));
+}
+function studioSalaryInspector(e){
+ const base=studioSalaryBase(e),planned=studioSalaryPlanned(e),delta=planned-base;
+ const history=studioSalaryHistoryFor(e.id);
+ const rate=num(data.settings.employerRate);
+ const color=delta>0?' is-rise':'';
+ const date=m=>{try{return new Date(m).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'})}catch{return ''}};
+ return '<section class="studio-salary-comparison"><h4>เปรียบเทียบเงินเดือนเดิม / ใหม่</h4>'
+ +'<div class="studio-salary-summary"><span>ฐานเดิม (ล็อกไว้)</span><strong class="is-muted">'+money(base)+'</strong></div>'
+ +'<label for="studioSalaryPlanInput">เงินเดือนใหม่ตามแผน (บาท / เดือน)</label>'
+ +'<input id="studioSalaryPlanInput" data-quick-id="'+h(e.id)+'" data-quick-field="salary" type="number" min="0" step="1" value="'+planned+'" aria-label="แก้เงินเดือนใหม่ตามแผน">'
+ +'<label for="studioSalaryEffective">เริ่มใช้เงินเดือนใหม่ ตั้งแต่เดือนที่</label>'
+ +'<select id="studioSalaryEffective" data-quick-id="'+h(e.id)+'" data-quick-field="salaryEffectiveMonth">'
+ +Array.from({length:12},(_,i)=>'<option value="'+(i+1)+'" '+((num(changeFor(e.id).salaryEffectiveMonth)||1)===i+1?'selected':'')+'>'+(i+1)+' · '+h(monthLabel(monthOffset(data.settings.startMonth,i)))+'</option>').join('')+'</select>'
+ +'<div class="studio-salary-summary total'+color+'"><span>'+(delta<0?'ประหยัดเงินเดือนต่อเดือน':delta>0?'เงินเดือนเพิ่มขึ้นต่อเดือน':'ส่วนต่างต่อเดือน')+'</span><strong>'+(delta<0?'−':delta>0?'+':'')+money(Math.abs(delta))+'</strong></div>'
+ +(rate>0?'<div class="studio-salary-summary"><span>ผลต่างต้นทุนนายจ้างรวมสมทบ</span><strong>'+(delta<0?'−':delta>0?'+':'')+money(Math.abs(delta)*(1+rate/100))+'</strong></div>':'')
+ +'<button class="studio-salary-action" data-action="salary-reset" data-id="'+h(e.id)+'">คืนเงินเดือนในแผนเป็นฐานเดิม</button>'
+ +'<div class="studio-salary-history"><b>ประวัติการปรับในแผนนี้</b>'
+ +(history.length?history.map(entry=>'<div class="studio-salary-history-item"><div>'+money(entry.before)+' → '+money(entry.after)+'<small>'+h(date(entry.at))+' · เดือนที่ '+num(entry.effectiveMonth)+'</small></div><strong>'+(entry.after<entry.before?'−':'+')+money(Math.abs(entry.after-entry.before))+'</strong></div>').join(''):'<div class="studio-inline-help">ยังไม่มีประวัติใหม่ที่บันทึกหลังเพิ่มฟีเจอร์นี้ · ฐานเดิมยังคงแสดงด้านบน</div>')
+ +'</div><div class="studio-inline-help">เงินเดือนฐานเดิมจะไม่เปลี่ยนเมื่อทดลองปรับในแผน · ประวัติไม่ปรากฏในไฟล์ที่ส่งให้พนักงาน</div></section>';
+}
 function studioQuickInspector(e){
  const hire=scenario().hires.some(x=>x.id===e.id),planned=orgMode==='planned'&&!hire;
  const current=data.employees.find(x=>x.id===e.id);
@@ -933,8 +1035,7 @@ function studioQuickInspector(e){
  +'<div class="studio-field"><label>ตำแหน่ง / ระดับ (Job Level)</label><select data-role-preset-quick="'+h(e.id)+'" aria-label="เลือกตำแหน่งจาก 18 ระดับ">'+studioRoleOptions(e.role)+'</select><input class="studio-role-custom" data-quick-id="'+h(e.id)+'" data-quick-field="role" data-role-custom-quick="'+h(e.id)+'" value="'+h(e.role||'')+'" placeholder="ระบุตำแหน่งเอง เช่น Sales Executive" maxlength="120" '+(studioJobLevels.includes(e.role)?'hidden':'')+'><div class="studio-inline-help">เลือกระดับในรายการ หรือเลือกกำหนดเองเพื่อกรอก Job Title</div></div>'
  +'<div class="studio-field"><label>แผนก</label><select data-quick-id="'+h(e.id)+'" data-quick-field="dept" aria-label="เลือกแผนกของพนักงาน">'+studioDepartmentNames().map(d=>'<option value="'+h(d)+'" '+(d===e.dept?'selected':'')+'>'+h(d)+'</option>').join('')+'</select><div class="studio-inline-help">แสดงทุกแผนกที่มีในระบบ · เพิ่มแผนกใหม่ได้จากแถบด้านซ้าย</div></div>'
  +'<div class="studio-field"><label>รายงานต่อ</label><select data-quick-id="'+h(e.id)+'" data-quick-field="managerId"><option value="">— ไม่มีหัวหน้า —</option>'+managerOptions+'</select></div>'
- +'<div class="studio-inline-two">'+field('salary','เงินเดือนฐาน (บาท)',e.salary,'type="number" min="0" step="1"')
- +field('allowance','เบี้ยเลี้ยง (บาท)',e.allowance,'type="number" min="0" step="1"')+'</div>'
+ +(hire?'<div class="studio-inline-two">'+field('salary','เงินเดือนเป้าหมาย (บาท)',e.salary,'type="number" min="0" step="1"')+field('allowance','เบี้ยเลี้ยง (บาท)',e.allowance,'type="number" min="0" step="1"')+'</div>':studioSalaryInspector(e)+'<div class="studio-field">'+field('allowance','เบี้ยเลี้ยงปัจจุบัน (บาท)',e.allowance,'type="number" min="0" step="1"')+'</div>')
  +'<div class="studio-inline-help">'+(hire?'ข้อมูลตำแหน่งจ้างใหม่ในแผน':planned?'เงินเดือนจะเปลี่ยนเฉพาะ Scenario นี้ · ชื่อ ตำแหน่ง และแผนกเป็นข้อมูลต้นฉบับ':'แก้ข้อมูลพนักงานต้นฉบับ')+'</div>'
  +'<button class="studio-action" data-action="strategy-dept" data-dept="'+h(e.dept)+'">แก้ Goal/KPI แผนกนี้</button>'
  +'<button class="studio-action" data-action="'+(hire?'edit-hire':planned?'plan-employee':'edit-employee')+'" data-id="'+h(e.id)+'">ตัวเลือกขั้นสูง / ค่าชดเชย / วันที่มีผล</button>'
@@ -954,10 +1055,13 @@ function studioQuickSave(id,key,value){
   const map=new Map(studioPeople().map(e=>[e.id,e]));let cur=value,seen=new Set();
   while(cur&&!seen.has(cur)){if(cur===id){toast('เลือกหัวหน้าไม่ได้ เพราะจะเกิดสายบังคับบัญชาวนกลับ');render();return}seen.add(cur);cur=map.get(cur)?.managerId||'';}
  }
- if(key==='salary'&&orgMode==='planned'&&!hire){
-  scenario().changes[id]=scenario().changes[id]||{};
-  scenario().changes[id].salaryOverride=value;
- }else if(key==='managerId'&&orgMode==='planned'&&!hire){
+ if(key==='salary'&&!hire){studioSavePlannedSalary(id,value);return;}
+ if(key==='salaryEffectiveMonth'&&!hire){
+  const ch=scenario().changes[id]||{};
+  ch.salaryEffectiveMonth=Math.max(1,Math.min(12,Math.round(num(value)||1)));
+  scenario().changes[id]=ch;save();render();toast('ตั้งเดือนเริ่มปรับเงินเดือนแล้ว');return;
+ }
+ if(key==='managerId'&&orgMode==='planned'&&!hire){
   scenario().changes[id]=scenario().changes[id]||{};
   scenario().changes[id].managerOverride=value;
  }else{
@@ -1132,6 +1236,7 @@ case 'delete-scenario':if(data.scenarios.length===1)return toast('ต้อง�
 case 'close-modal':closeModal();return;case 'submit-modal':$('#modalForm')?.requestSubmit();return;
 case 'delete-employee':if(confirmAction('ลบพนักงานออกจากข้อมูลต้นฉบับจริงหรือไม่? การจำลองให้ออกให้ใช้ “ปรับแผน” แทน')){data.employees=data.employees.filter(e=>e.id!==el.dataset.id);data.employees.forEach(e=>{if(e.managerId===el.dataset.id)e.managerId=''});data.scenarios.forEach(s=>{delete s.changes[el.dataset.id];s.hires.forEach(e=>{if(e.managerId===el.dataset.id)e.managerId=''})});save();closeModal();toast('ลบข้อมูลพนักงานออกจากฐานแล้ว')}return;
 case 'delete-hire':if(confirmAction('ยกเลิกตำแหน่งที่วางแผนรับเพิ่มนี้?')){scenario().hires=scenario().hires.filter(e=>e.id!==el.dataset.id);save();closeModal();toast('ยกเลิกตำแหน่งแล้ว')}return;
+case 'salary-reset':{const employee=data.employees.find(e=>e.id===el.dataset.id);if(employee)studioSavePlannedSalary(employee.id,studioSalaryBase(employee));return;}
 case 'clear-plan-person':delete scenario().changes[el.dataset.id];save();closeModal();toast('คืนค่าแผนเป็นคงไว้');return;
 case 'reset-changes':if(confirmAction('คืนการปรับพนักงานปัจจุบันทั้งหมดในแผนนี้? (ยังเก็บตำแหน่งจ้างใหม่)')){scenario().changes={};save();render()}return;
 case 'org-mode':studioSelectedDept='';orgMode=el.dataset.mode;studioCameraInitialized=false;studioMultiNodes.clear();studioMultiEdges.clear();studioSelected='';studioSelectedEdge='';render();return;case 'zoom-in':orgZoom=Math.min(160,orgZoom+15);render();return;case 'zoom-out':orgZoom=Math.max(55,orgZoom-15);render();return;
@@ -1144,7 +1249,7 @@ case 'clear-all':if(confirmAction('ล้างข้อมูลทั้งห
 }}
 function formSubmit(form){const f=Object.fromEntries(new FormData(form).entries());const type=form.dataset.type,prevId=modal?.id;
  if(type==='employee'){if(!f.name.trim()||!f.role.trim()){toast('กรอกชื่อและตำแหน่งก่อน');return}const newE={id:prevId||uid(),name:f.name.trim(),role:f.role.trim(),dept:f.dept,salary:Math.max(0,num(f.salary)),allowance:Math.max(0,num(f.allowance)),managerId:f.managerId||'',startDate:f.startDate||'',notes:f.notes||''};if(prevId){data.employees=data.employees.map(e=>e.id===prevId?newE:e)}else data.employees.push(newE);}
- if(type==='plan-employee'){const c={decision:studioInactiveDecision(f.decision)?f.decision:'keep',salaryOverride:f.salaryOverride===''?null:Math.max(0,num(f.salaryOverride)),salaryEffectiveMonth:Math.max(1,Math.min(12,Math.round(num(f.salaryEffectiveMonth)||1))),managerOverride:f.managerOverride||'',effectiveMonth:Math.max(1,Math.min(12,Math.round(num(f.effectiveMonth)||1))),oneTimeCost:Math.max(0,num(f.oneTimeCost)),handover:f.handover||'',notes:f.notes||''};scenario().changes[prevId]=c;}
+ if(type==='plan-employee'){const person=data.employees.find(e=>e.id===prevId);const oldSalary=person?studioSalaryPlanned(person):0;const targetSalary=f.salaryOverride===''?(person?num(person.salary):0):Math.max(0,num(f.salaryOverride));if(person)studioRecordSalaryChange(prevId,oldSalary,targetSalary,f.salaryEffectiveMonth,'ฟอร์มขั้นสูง');const c={decision:studioInactiveDecision(f.decision)?f.decision:'keep',salaryOverride:f.salaryOverride===''?null:Math.max(0,num(f.salaryOverride)),salaryEffectiveMonth:Math.max(1,Math.min(12,Math.round(num(f.salaryEffectiveMonth)||1))),managerOverride:f.managerOverride||'',effectiveMonth:Math.max(1,Math.min(12,Math.round(num(f.effectiveMonth)||1))),oneTimeCost:Math.max(0,num(f.oneTimeCost)),handover:f.handover||'',notes:f.notes||''};scenario().changes[prevId]=c;}
  if(type==='hire'){if(!f.role.trim()){toast('กรอกตำแหน่งก่อน');return}const e={id:prevId||uid(),role:f.role.trim(),name:f.name.trim(),dept:f.dept,salary:Math.max(0,num(f.salary)),allowance:Math.max(0,num(f.allowance)),managerId:f.managerId||'',startMonth:Math.max(1,Math.min(12,Math.round(num(f.startMonth)||1))),oneTimeCost:Math.max(0,num(f.oneTimeCost)),notes:f.notes||''};if(prevId)scenario().hires=scenario().hires.map(x=>x.id===prevId?e:x);else{studioPositionForecastHire(e.id,e.dept,e.managerId);scenario().hires.push(e);}studioSelected=e.id;studioSelectedDept='';studioSelectedNote='';studioMultiNodes.clear();studioMultiEdges.clear();}
  if(type==='scenario'){const s={id:uid(),name:f.name.trim(),notes:f.notes||'',changes:{},hires:[]};data.scenarios.push(s);data.currentScenario=s.id;}
  if(type==='rename-scenario'){scenario().name=f.name.trim();scenario().notes=f.notes||'';}

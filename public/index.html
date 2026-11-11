@@ -134,6 +134,27 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
 .studio-kpi-meter span{display:block;height:100%;background:#078b7b;border-radius:4px}
 .studio-strategy-banner{position:absolute;top:13px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid #d1e6df;box-shadow:0 3px 13px #0c5a4316;z-index:12;border-radius:9px;padding:9px 14px;font-size:11px;max-width:75%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .studio-dept-legend{font-size:10px;color:#6c8c82;line-height:1.65}
+
+/* Idea board: movable direct-edit sticky notes, text labels and feedback shapes */
+.studio-canvas-item{position:absolute;width:220px;min-height:170px;z-index:6;box-shadow:0 8px 15px #234b391a;border:1px solid #ddcf99;border-radius:5px;touch-action:none;overflow:visible}
+.studio-canvas-item[data-color="yellow"]{background:#fff5bb;border-color:#f3df86}
+.studio-canvas-item[data-color="pink"]{background:#ffe8ee;border-color:#efb8c6}
+.studio-canvas-item[data-color="blue"]{background:#e0f3ff;border-color:#b5dbee}
+.studio-canvas-item[data-color="mint"]{background:#dcf6e6;border-color:#a9dcc4}
+.studio-canvas-item.is-selected{outline:2px solid #078f7f;outline-offset:3px}
+.studio-item-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 11px;cursor:grab;font-size:10px;font-weight:750;color:#506c56;border-bottom:1px solid #76551e21;user-select:none}
+.studio-item-bar:active{cursor:grabbing}
+.studio-item-bar button{border:0;background:#ffffffb5;padding:2px 8px;cursor:pointer;border-radius:5px;font-size:12px;color:#50726a}
+.studio-item-text{display:block;box-sizing:border-box;width:100%;min-height:125px;padding:13px 14px;resize:both;border:0;outline:0;background:transparent;color:#30483a;font-size:15px;line-height:1.6;font-family:'IBM Plex Sans Thai',sans-serif}
+.studio-canvas-item[data-kind="text"]{min-height:85px;background:transparent!important;border:1px dashed #bad5cc;box-shadow:none}
+.studio-canvas-item[data-kind="text"] .studio-item-text{min-height:52px;font-size:20px;font-weight:800;color:#154e46}
+.studio-canvas-item[data-kind="shape"]{min-height:150px;border:2px solid #65b1a3;border-radius:18px;box-shadow:none}
+.studio-canvas-item[data-kind="shape"] .studio-item-text{min-height:102px;font-size:15px;text-align:center}
+.studio-canvas-tools .studio-idea-tool{width:auto;min-width:57px;display:flex;gap:5px;padding:5px 9px;font-size:11px;font-weight:750;align-items:center;justify-content:center}
+.studio-canvas-tools .studio-idea-tool.active{background:#e8f5ed;color:#087b68}
+.studio-note-colors{display:flex;gap:10px;margin:12px 0}
+.studio-note-colors button{width:27px;height:27px;border:2px solid #fff;border-radius:7px;box-shadow:0 0 0 1px #cddbd5;cursor:pointer}
+.studio-note-colors button.active{box-shadow:0 0 0 2px #04877a}
 </style>
 </head>
 <body>
@@ -315,7 +336,7 @@ function modalHTML(){let title='',body='',footer='',deleteAction='';const id=mod
 let studioSelected='e1', studioTool='select', studioSearch='', studioLeftOpen=false, studioRightOpen=false;
 let studioSelectedEdge='', studioEdgeGesture=null;
 let studioMultiNodes=new Set(),studioMultiEdges=new Set();
-let studioSelectedDept='';
+let studioSelectedDept='', studioSelectedNote='', studioNoteGesture=null;
 let studioCamera={x:0,y:0,z:.78},studioCameraInitialized=false,studioPositions={},studioGesture=null,studioSuppressClick=false;
 const studioW=256,studioH=126;
 function studioPeople(){const s=scenario();let rows=data.employees.map(e=>{const ch=s.changes[e.id]||{};if(orgMode==='current')return {...e,studioExit:false,planned:false};return {...e,salary:ch.salaryOverride!=null&&ch.salaryOverride!==''?num(ch.salaryOverride):num(e.salary),managerId:ch.managerOverride!==undefined?ch.managerOverride:e.managerId,studioExit:ch.decision==='exit',planned:false}});if(orgMode==='planned')rows.push(...s.hires.map(e=>({...e,name:e.name||'ตำแหน่งว่าง',studioExit:false,planned:true})));return rows;}
@@ -535,7 +556,46 @@ function studioQuickSave(id,key,value){
  }
  studioSelected=id;save();render();toast('บันทึก '+key+' แล้ว');
 }
-function studioInspector(){if(studioSelectedDept)return studioDeptInspector();const entry=studioPeople().find(x=>x.id===studioSelected);if(entry)return studioQuickInspector(entry);if(studioSelectionCount()>=2)return studioMultiInspector();const e=studioPeople().find(x=>x.id===studioSelected);const s=scenario(),st=stats();if(!e)return `<div class="studio-ins-head"><div class="studio-side-eyebrow">INSPECTOR</div><h3>ภาพรวมแผน</h3><p>คลิกการ์ดบนผังเพื่อดูรายละเอียด หรือปรับโครงสร้างจากด้านขวา</p></div><div class="studio-ins-body"><div class="studio-mini-title">สรุปจำนวนคน</div><div class="studio-metric-row"><span>พนักงานปัจจุบัน</span><b>${data.employees.length} คน</b></div><div class="studio-metric-row"><span>เสนอให้ออก</span><b class="negative">${st.changed} คน</b></div><div class="studio-metric-row"><span>จ้างใหม่</span><b class="positive">${st.hires} คน</b></div><div class="studio-divider"></div><div class="studio-mini-title">แผนการรับคน</div>${s.hires.map(x=>`<button class="studio-ins-row" data-action="focus-node" data-id="${h(x.id)}"><b>${h(x.role)}</b><span>${money(x.salary)}</span></button>`).join('')||'<p class="studio-placeholder">ยังไม่มีตำแหน่งใหม่</p>'}<button class="studio-action" data-action="add-hire">${ic('plus')} เพิ่มตำแหน่งที่ต้องรับ</button><div class="studio-divider"></div><div class="studio-mini-title">งบประมาณ</div><form id="quickBudgetForm" class="studio-field"><label>งบต้นทุนต่อเดือน (บาท)</label><div class="studio-inline-field"><input name="budget" type="number" value="${num(data.settings.budget)}" min="0" step="1"><button type="submit" aria-label="บันทึกงบประมาณ">${ic('check')}</button></div></form><div class="studio-mini-note">ระบบคำนวณตามเงินเดือน/เบี้ยเลี้ยง และต้นทุนนายจ้าง ${num(data.settings.employerRate)}%</div></div>`;
+
+function studioCanvasItems(){
+ data.canvasItems=Array.isArray(data.canvasItems)?data.canvasItems:[];
+ return data.canvasItems.filter(n=>n.layout===studioLayoutKey());
+}
+function studioItemColors(){return {yellow:'#fff5bb',pink:'#ffe8ee',blue:'#e0f3ff',mint:'#dcf6e6'}}
+function studioItemHTML(n){
+ const type=n.kind==='text'?'ข้อความ':n.kind==='shape'?'กรอบความคิด':'โพสต์อิต';
+ return '<div class="studio-canvas-item '+(studioSelectedNote===n.id?'is-selected':'')+'" data-item-id="'+h(n.id)+'" data-kind="'+h(n.kind)+'" data-color="'+h(n.color)+'" style="left:'+num(n.x)+'px;top:'+num(n.y)+'px">'
+ +'<div class="studio-item-bar" data-note-drag="'+h(n.id)+'"><span>⋮⋮ '+type+'</span><button type="button" data-action="item-select" data-id="'+h(n.id)+'" title="เลือกและแก้ไข">•••</button></div>'
+ +'<textarea class="studio-item-text" data-item-input="'+h(n.id)+'" aria-label="แก้ข้อความบนกระดาน" placeholder="พิมพ์ข้อความ...">'+h(n.text||'')+'</textarea></div>';
+}
+function studioNoteInspector(){
+ const item=studioCanvasItems().find(n=>n.id===studioSelectedNote);
+ if(!item)return '<div class="studio-ins-head"><h3>เลือกโน้ตบน Canvas</h3></div>';
+ return '<div class="studio-ins-head"><div class="studio-side-eyebrow">IDEA / CANVAS OBJECT</div><h3>'+(item.kind==='text'?'ข้อความ':item.kind==='shape'?'กรอบความคิด':'โพสต์อิต')+'</h3><p>พิมพ์ข้อความบนกระดานได้ทันที · ลากแถบด้านบนเพื่อย้าย</p></div>'
+ +'<div class="studio-inline-editor"><div class="studio-mini-title">แก้ไขข้อความ</div>'
+ +'<div class="studio-field"><textarea data-note-inspector="'+h(item.id)+'">'+h(item.text||'')+'</textarea></div>'
+ +'<div class="studio-mini-title">สีของโน้ต</div><div class="studio-note-colors">'
+ +Object.entries(studioItemColors()).map(([n,c])=>'<button data-action="item-color" data-id="'+h(item.id)+'" data-color="'+n+'" class="'+(n===item.color?'active':'')+'" style="background:'+c+'" title="'+n+'"></button>').join('')
+ +'</div><button class="studio-action" data-action="item-duplicate" data-id="'+h(item.id)+'">ทำสำเนา</button>'
+ +'<button class="studio-action danger" data-action="item-delete" data-id="'+h(item.id)+'">ลบโน้ตนี้</button>'
+ +'<button class="studio-action" data-action="item-deselect">ปิดตัวแก้ไข</button></div>';
+}
+function studioItemCreate(kind,x,y){
+ const id=uid();
+ data.canvasItems=data.canvasItems||[];
+ data.canvasItems.push({id,layout:studioLayoutKey(),kind:kind||'note',x:Math.max(0,Math.round(x/10)*10),y:Math.max(0,Math.round(y/10)*10),color:kind==='shape'?'blue':'yellow',text:kind==='text'?'หัวข้อ':'',createdAt:new Date().toISOString()});
+ studioSelectedNote=id;studioSelectedDept='';studioSelected='';studioTool='select';save();render();toast('เพิ่มวัตถุบน Canvas แล้ว · พิมพ์แก้ได้ทันที');
+}
+function studioItemAction(name,el){
+ const id=el.dataset.id,item=(data.canvasItems||[]).find(x=>x.id===id);
+ if(!item&&name!=='item-deselect')return;
+ if(name==='item-select'){studioSelectedNote=id;studioSelectedDept='';studioSelected='';render();return;}
+ if(name==='item-deselect'){studioSelectedNote='';render();return;}
+ if(name==='item-color'){item.color=el.dataset.color;studioSelectedNote=id;save();render();return;}
+ if(name==='item-duplicate'){const copy={...item,id:uid(),x:item.x+35,y:item.y+35};data.canvasItems.push(copy);studioSelectedNote=copy.id;save();render();return;}
+ if(name==='item-delete'){data.canvasItems=data.canvasItems.filter(x=>x.id!==id);studioSelectedNote='';save();render();toast('ลบโน้ตแล้ว');}
+}
+function studioInspector(){if(studioSelectedNote)return studioNoteInspector();if(studioSelectedDept)return studioDeptInspector();const entry=studioPeople().find(x=>x.id===studioSelected);if(entry)return studioQuickInspector(entry);if(studioSelectionCount()>=2)return studioMultiInspector();const e=studioPeople().find(x=>x.id===studioSelected);const s=scenario(),st=stats();if(!e)return `<div class="studio-ins-head"><div class="studio-side-eyebrow">INSPECTOR</div><h3>ภาพรวมแผน</h3><p>คลิกการ์ดบนผังเพื่อดูรายละเอียด หรือปรับโครงสร้างจากด้านขวา</p></div><div class="studio-ins-body"><div class="studio-mini-title">สรุปจำนวนคน</div><div class="studio-metric-row"><span>พนักงานปัจจุบัน</span><b>${data.employees.length} คน</b></div><div class="studio-metric-row"><span>เสนอให้ออก</span><b class="negative">${st.changed} คน</b></div><div class="studio-metric-row"><span>จ้างใหม่</span><b class="positive">${st.hires} คน</b></div><div class="studio-divider"></div><div class="studio-mini-title">แผนการรับคน</div>${s.hires.map(x=>`<button class="studio-ins-row" data-action="focus-node" data-id="${h(x.id)}"><b>${h(x.role)}</b><span>${money(x.salary)}</span></button>`).join('')||'<p class="studio-placeholder">ยังไม่มีตำแหน่งใหม่</p>'}<button class="studio-action" data-action="add-hire">${ic('plus')} เพิ่มตำแหน่งที่ต้องรับ</button><div class="studio-divider"></div><div class="studio-mini-title">งบประมาณ</div><form id="quickBudgetForm" class="studio-field"><label>งบต้นทุนต่อเดือน (บาท)</label><div class="studio-inline-field"><input name="budget" type="number" value="${num(data.settings.budget)}" min="0" step="1"><button type="submit" aria-label="บันทึกงบประมาณ">${ic('check')}</button></div></form><div class="studio-mini-note">ระบบคำนวณตามเงินเดือน/เบี้ยเลี้ยง และต้นทุนนายจ้าง ${num(data.settings.employerRate)}%</div></div>`;
 const original=data.employees.find(x=>x.id===e.id),ch=original?changeFor(e.id):{},isCurrent=orgMode==='current';const status=e.planned?'ตำแหน่งจ้างใหม่':e.studioExit?'เสนอให้ออก':isCurrent?'พนักงานปัจจุบัน':'คงไว้ในแผน';const selectedSalary=(num(e.salary)+num(e.allowance));const manager=studioPeople().find(x=>x.id===e.managerId);return `<div class="studio-ins-head"><div class="studio-side-eyebrow">INSPECTOR / SELECTED PERSON</div><div class="studio-ins-profile">${studioAvatar(e)}<div><h3>${h(e.name)}</h3><p>${h(e.role)}</p></div></div><div class="studio-status ${e.studioExit?'danger':e.planned?'new':''}">${status}</div></div><div class="studio-ins-body"><div class="studio-mini-title">รายละเอียดตำแหน่ง</div><div class="studio-field"><label>ชื่อพนักงาน / ตำแหน่งว่าง</label><div class="studio-static">${h(e.name)}</div></div><div class="studio-field"><label>หน้าที่ / ตำแหน่ง</label><div class="studio-static">${h(e.role)}</div></div><div class="studio-field"><label>ทีม / แผนก</label><div class="studio-static">${h(e.dept)}</div></div><div class="studio-field"><label>รายงานต่อ</label><div class="studio-static">${h(manager?manager.name+' · '+manager.role:'— สูงสุดในสายงาน —')}</div></div><div class="studio-field"><label>จำนวนลูกทีมโดยตรง</label><div class="studio-static">${studioPeople().filter(x=>x.managerId===e.id).length} คน</div></div><div class="studio-divider"></div><div class="studio-mini-title">ค่าตอบแทน</div><div class="studio-big-salary">${money(selectedSalary)} <span>/ เดือน</span></div><div class="studio-metric-row"><span>เงินเดือนฐาน</span><b>${money(e.salary)}</b></div><div class="studio-metric-row"><span>เบี้ยเลี้ยง</span><b>${money(e.allowance)}</b></div>${original&&!isCurrent&&ch.salaryOverride!=null?`<div class="studio-metric-row"><span>เงินเดือนปัจจุบัน</span><b>${money(original.salary)}</b></div>`:''}<div class="studio-divider"></div><div class="studio-mini-title">แก้ไขจากผังองค์กร</div>${e.managerId?`<button class="studio-action" data-action="disconnect-manager" data-id="${h(e.id)}">ตัดเส้นเชื่อมกับหัวหน้า</button>`:""}<button class="studio-action primary" data-action="${e.planned?'edit-hire':isCurrent?'edit-employee':'plan-employee'}" data-id="${h(e.id)}">${ic('edit')} ${e.planned?'แก้ไขแผนจ้างใหม่':isCurrent?'แก้ข้อมูลพนักงานปัจจุบัน':'ปรับแผน / เงินเดือน / หัวหน้า'}</button>${original&&!isCurrent?`<button class="studio-action ${e.studioExit?'good':'danger'}" data-action="toggle-exit" data-id="${h(e.id)}">${ic('users')} ${e.studioExit?'คืนพนักงานเข้าแผน':'จำลองให้ออก'}</button>`:''}${!e.planned?`<button class="studio-action" data-action="edit-employee" data-id="${h(e.id)}">${ic('file')} แก้ข้อมูลต้นฉบับ</button>`:''}<div class="studio-mini-note">ตำแหน่ง X ${Math.round((studioPositions[e.id]||{}).x||0)} / Y ${Math.round((studioPositions[e.id]||{}).y||0)} · ลากการ์ดเพื่อจัดระยะได้</div></div>`;}
 function studioListItem(e){const exit=orgMode==='planned'&&changeFor(e.id).decision==='exit';const active=studioSelected===e.id;return `<button class="studio-roster-row ${active?'active':''}" data-action="focus-node" data-id="${h(e.id)}">${studioAvatar(e)}<span><b>${h(e.name)}</b><small>${h(e.role)}</small></span>${exit?'<i class="studio-small-exit"></i>':''}</button>`;}
 function renderCanvasStudio(){const st=stats(),rows=studioPeople(),base=st.current,plan=st.month12.planned,delta=base-plan,search=studioSearch.toLowerCase(),filtered=data.employees.filter(e=>[e.name,e.role,e.dept].join(' ').toLowerCase().includes(search));studioPositions=studioPositionMap(rows);if(studioSelected&&!rows.some(x=>x.id===studioSelected))studioSelected='';const s=scenario();return `<div class="studio-shell">
@@ -544,7 +604,7 @@ function renderCanvasStudio(){const st=stats(),rows=studioPeople(),base=st.curre
 <div class="studio-main">
 <aside class="studio-left ${studioLeftOpen?'studio-mobile-open':''}"><div class="studio-side-top"><div class="studio-side-eyebrow">LAYERS / TEAM</div><h3>โครงสร้างทีม <span>${data.employees.length}</span></h3><div class="studio-search">${ic('search')}<input id="employeeSearch" placeholder="ค้นหาคนหรือตำแหน่ง" value="${h(studioSearch)}" autocomplete="off"></div></div><div class="studio-roster-scroll"><div class="studio-roster-heading">แผนก / DEPARTMENTS</div>${studioDeptGroups(rows).map(([n,persons])=>`<button class="studio-dept-shortcut ${studioSelectedDept===n?'active':''}" data-action="strategy-dept" data-dept="${h(n)}"><span class="studio-dept-marker" style="width:7px;height:7px;border-radius:3px;background:${studioDeptColor(n)[2]}"></span><b>${h(n)}</b><i>${persons.length}</i></button>`).join('')}<div class="studio-roster-heading">พนักงานปัจจุบัน <span>${filtered.length}</span></div>${filtered.length?filtered.map(studioListItem).join(''):'<div class="studio-placeholder">ไม่พบรายชื่อ</div>'}<div class="studio-roster-heading" style="margin-top:16px">ตำแหน่งรับเพิ่ม <span>${s.hires.length}</span></div>${s.hires.map(e=>`<button class="studio-roster-row future ${studioSelected===e.id?'active':''}" data-action="focus-node" data-id="${h(e.id)}">${studioAvatar({...e,name:e.name||'ตำแหน่งว่าง'})}<span><b>${h(e.role)}</b><small>${money(e.salary)} / เดือน</small></span></button>`).join('')||'<div class="studio-placeholder">ยังไม่มีตำแหน่งที่วางแผนรับเพิ่ม</div>'}</div><div class="studio-sidebar-footer"><button class="studio-action" data-action="add-hire">${ic('plus')} เพิ่มตำแหน่งใหม่</button><div class="studio-side-links"><button data-action="export-csv">${ic('download')} ส่งออก CSV</button><button data-action="template-csv">ไฟล์ตัวอย่าง</button></div></div></aside>
 <section class="studio-center" aria-label="ผังองค์กร Canvas"><div class="studio-canvas-header"><div class="studio-mode"><button data-action="org-mode" data-mode="planned" class="${orgMode==='planned'?'active':''}">ผังตามแผน</button><button data-action="org-mode" data-mode="current" class="${orgMode==='current'?'active':''}">ผังปัจจุบัน</button></div><span class="studio-canvas-headnote">ใช้ ▣ เลือกหลายตัว แล้วลากกรอบคลุม · Shift+คลิกเพิ่มรายการ · ลากกลุ่มย้ายตำแหน่ง · ลบเฉพาะเส้น</span><span class="studio-canvas-fill"></span><button class="studio-icon-button studio-mobile-only" data-action="mobile-people" title="รายชื่อ">${ic('users')}</button><button class="studio-icon-button studio-mobile-only" data-action="mobile-inspector" title="รายละเอียด">${ic('settings')}</button></div>
-<div id="studioViewport" class="studio-viewport ${studioTool==='hand'?'hand-mode':''}"><div class="studio-canvas-background"></div><div id="studioWorld" class="studio-world"><div id="studioDeptFrames" class="studio-department-frames">${studioDeptFrames(rows)}</div><svg id="studioEdges" class="studio-edges" width="3400" height="3200" viewBox="0 0 3400 3200">${studioPaths(rows)}</svg><div id="studioEdgeToolbar" class="studio-edge-toolbar" aria-label="แก้ไขเส้นเชื่อม"></div>${rows.map(studioCard).join('')}</div><div id="studioSelectionRect" class="studio-selection-rect"></div><div id="studioMultiActions" class="studio-multiselect-bar" style="display:${studioSelectionCount()?'flex':'none'}"><strong data-selection-count>${studioMultiNodes.size} การ์ด · ${studioMultiEdges.size} เส้น</strong><button data-action="selection-unlink" class="danger">ลบเส้นที่เลือก</button><button data-action="selection-clear">ยกเลิก</button></div><div class="studio-canvas-caption"><span class="studio-canvas-dot"></span> ${h(s.name)} <span>·</span> ${rows.length} การ์ดบน Canvas ${data.demo?'· ข้อมูลตัวอย่าง':''}</div>${studioEdgePanelHTML(rows)}<div class="studio-canvas-tools"><button class="${studioTool==='select'?'active':''}" data-action="tool-select" title="เลือก / ลากการ์ด">${ic('edit')}</button><button class="studio-marquee-tool ${studioTool==='marquee'?'active':''}" data-action="tool-marquee" title="ลากกรอบเลือกหลายการ์ดและเส้น">▣ เลือกหลายตัว</button><button class="studio-marquee-tool" data-action="selection-all" title="เลือกทุกการ์ด (Cmd+A)">ทั้งหมด</button><button class="${studioTool==='hand'?'active':''}" data-action="tool-hand" title="มือเลื่อนผัง">${ic('people')}</button><button class="studio-edge-tool ${studioTool==='edge'?'active':''}" data-action="tool-edge" title="เลือก ดัด และลบเส้น">↝ เส้น</button><span></span><button data-action="reset-layout" title="จัดผังใหม่อัตโนมัติ">${ic('refresh')}</button></div><div class="studio-zoom-box"><button data-action="canvas-zoom-out" title="ซูมออก">−</button><span id="studioZoomPct">${Math.round(studioCamera.z*100)}%</span><button data-action="canvas-zoom-in" title="ซูมเข้า">+</button><button class="studio-fit" data-action="canvas-fit" title="ดูทั้งผัง">Fit</button></div><div class="studio-minimap"><div class="studio-minimap-label">OVERVIEW</div><div id="studioMiniMap" class="studio-mini-content"></div></div></div>
+<div id="studioViewport" class="studio-viewport ${studioTool==='hand'?'hand-mode':''}"><div class="studio-canvas-background"></div><div id="studioWorld" class="studio-world"><div id="studioDeptFrames" class="studio-department-frames">${studioDeptFrames(rows)}</div><svg id="studioEdges" class="studio-edges" width="3400" height="3200" viewBox="0 0 3400 3200">${studioPaths(rows)}</svg><div id="studioEdgeToolbar" class="studio-edge-toolbar" aria-label="แก้ไขเส้นเชื่อม"></div>${rows.map(studioCard).join('')}${studioCanvasItems().map(studioItemHTML).join('')}</div><div id="studioSelectionRect" class="studio-selection-rect"></div><div id="studioMultiActions" class="studio-multiselect-bar" style="display:${studioSelectionCount()?'flex':'none'}"><strong data-selection-count>${studioMultiNodes.size} การ์ด · ${studioMultiEdges.size} เส้น</strong><button data-action="selection-unlink" class="danger">ลบเส้นที่เลือก</button><button data-action="selection-clear">ยกเลิก</button></div><div class="studio-canvas-caption"><span class="studio-canvas-dot"></span> ${h(s.name)} <span>·</span> ${rows.length} การ์ดบน Canvas ${data.demo?'· ข้อมูลตัวอย่าง':''}</div>${studioEdgePanelHTML(rows)}<div class="studio-canvas-tools"><button class="${studioTool==='select'?'active':''}" data-action="tool-select" title="เลือก / ลากการ์ด">${ic('edit')}</button><button class="studio-marquee-tool ${studioTool==='marquee'?'active':''}" data-action="tool-marquee" title="ลากกรอบเลือกหลายการ์ดและเส้น">▣ เลือกหลายตัว</button><button class="studio-marquee-tool" data-action="selection-all" title="เลือกทุกการ์ด (Cmd+A)">ทั้งหมด</button><button class="${studioTool==='hand'?'active':''}" data-action="tool-hand" title="มือเลื่อนผัง">${ic('people')}</button><button class="studio-edge-tool ${studioTool==='edge'?'active':''}" data-action="tool-edge" title="เลือก ดัด และลบเส้น">↝ เส้น</button><button class="studio-idea-tool ${studioTool==='sticky'?'active':''}" data-action="tool-sticky" title="คลิกพื้นที่ว่างเพื่อวางโพสต์อิต">▣ โน้ต</button><button class="studio-idea-tool ${studioTool==='text'?'active':''}" data-action="tool-text" title="เพิ่มข้อความบนผัง">T ข้อความ</button><button class="studio-idea-tool ${studioTool==='shape'?'active':''}" data-action="tool-shape" title="เพิ่มกรอบความคิด">▢ กรอบ</button><span></span><button data-action="reset-layout" title="จัดผังใหม่อัตโนมัติ">${ic('refresh')}</button></div><div class="studio-zoom-box"><button data-action="canvas-zoom-out" title="ซูมออก">−</button><span id="studioZoomPct">${Math.round(studioCamera.z*100)}%</span><button data-action="canvas-zoom-in" title="ซูมเข้า">+</button><button class="studio-fit" data-action="canvas-fit" title="ดูทั้งผัง">Fit</button></div><div class="studio-minimap"><div class="studio-minimap-label">OVERVIEW</div><div id="studioMiniMap" class="studio-mini-content"></div></div></div>
 <div class="studio-bottom"><div class="studio-bottom-left"><span class="studio-live"></span> กำลังจำลองแผน <span class="studio-bottom-sep"></span><b>${data.employees.length} → ${st.month12.headcount} คน</b><span class="studio-bottom-sep"></span><span class="negative">−${st.changed} ออก</span><span class="positive">+${st.hires} เข้า</span></div><button class="studio-bottom-action" data-action="rename-scenario">${ic('edit')} เปลี่ยนชื่อแผน</button></div></section>
 <aside class="studio-right ${studioRightOpen?'studio-mobile-open':''}">${studioInspector()}<div class="studio-side-bottom"><div class="studio-side-eyebrow">FINANCIAL IMPACT</div><div class="studio-side-impact"><span>${st.annualSave>=0?'ประหยัดสุทธิปีแรก':'ต้นทุนสุทธิเพิ่มปีแรก'}</span><strong class="${st.annualSave>=0?'positive':'negative'}">${st.annualSave>=0?'+':'−'}${money(Math.abs(st.annualSave))}</strong></div><div class="studio-impact-grid"><div><small>จ่ายครั้งเดียว</small><b>${money(st.oneTime)}</b></div><div><small>งบต่อเดือน</small><b>${money(st.budget)}</b></div></div><div class="studio-mini-note">ตัวเลขรวมจากแผน 12 เดือน ยังไม่คำนวณค่าชดเชยตามกฎหมายอัตโนมัติ</div></div></aside>
 </div><div class="studio-footer"><span>${ic('info')} ไฟล์นี้เป็น Workspace ในเครื่อง ข้อมูลไม่ซิงก์ข้ามอุปกรณ์</span><div><span class="studio-legend current"></span> พนักงานเดิม <span class="studio-legend new"></span> จ้างเพิ่ม <span class="studio-legend exit"></span> เสนอให้ออก</div></div></div>`;}
@@ -561,10 +621,14 @@ case 'edge-focus':studioEdgeFocus();return;
 case 'edge-auto':if(studioSelectedEdge){delete studioEdgeRouteMap()[studioSelectedEdge];save();studioDrawEdges();toast('จัดเส้นให้เป็นโค้งอัตโนมัติแล้ว')}return;
 case 'edge-delete':if(studioSelectedEdge){const id=studioSelectedEdge;studioSelectedEdge='';studioDisconnectManager(id);}return;
 case 'strategy-close':studioSelectedDept='';render();return;
-case 'strategy-dept':studioSelectedDept=el.dataset.dept;studioSelected='';studioSelectedEdge='';studioTool='select';render();studioDeptFocus(studioSelectedDept);return;
+case 'strategy-dept':studioSelectedNote='';studioSelectedDept=el.dataset.dept;studioSelected='';studioSelectedEdge='';studioTool='select';render();studioDeptFocus(studioSelectedDept);return;
 case 'strategy-add-kpi':if(studioSelectedDept){studioStrategyFor(studioSelectedDept).kpis.push({name:'',target:0,actual:0,unit:''});save();render();}return;
 case 'strategy-remove-kpi':if(studioSelectedDept){studioStrategyFor(studioSelectedDept).kpis.splice(Number(el.dataset.index),1);save();render();}return;
-case 'focus-node':studioSelectedDept='';studioMultiNodes.clear();studioMultiEdges.clear();studioSelectedEdge='';studioSelected=el.dataset.id;studioLeftOpen=false;studioRightOpen=true;render();studioCenterNode(studioSelected);return;
+case 'tool-sticky':studioTool='sticky';studioSelectedEdge='';render();toast('คลิกพื้นที่ว่างบน Canvas เพื่อวางโพสต์อิต');return;
+case 'tool-text':studioTool='text';studioSelectedEdge='';render();toast('คลิกบน Canvas เพื่อเพิ่มข้อความ');return;
+case 'tool-shape':studioTool='shape';studioSelectedEdge='';render();toast('คลิกบน Canvas เพื่อสร้างกรอบ');return;
+case 'item-select':case 'item-color':case 'item-duplicate':case 'item-delete':case 'item-deselect':studioItemAction(name,el);return;
+case 'focus-node':studioSelectedNote='';studioSelectedDept='';studioMultiNodes.clear();studioMultiEdges.clear();studioSelectedEdge='';studioSelected=el.dataset.id;studioLeftOpen=false;studioRightOpen=true;render();studioCenterNode(studioSelected);return;
 case 'mobile-people':studioLeftOpen=!studioLeftOpen;studioRightOpen=false;render();return;
 case 'mobile-inspector':studioRightOpen=!studioRightOpen;studioLeftOpen=false;render();return;
 case 'selection-unlink':studioSelectionUnlink();return;
@@ -613,10 +677,11 @@ async function importJSON(file){if(!file)return;try{const d=JSON.parse(await fil
 document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(el){e.preventDefault();action(el.dataset.action,el)}else if(e.target?.id==='modalBackdrop')closeModal()});
 document.addEventListener('submit',e=>{if(e.target.id==='quickBudgetForm'){e.preventDefault();data.settings.budget=Math.max(0,num(new FormData(e.target).get('budget')));save();render();toast('บันทึกงบประมาณแล้ว')}if(e.target.id==='modalForm'){e.preventDefault();formSubmit(e.target)}if(e.target.id==='settingsForm'){e.preventDefault();const f=Object.fromEntries(new FormData(e.target));data.company=String(f.company||'TeamShape');data.settings.startMonth=f.startMonth||'2026-11';data.settings.budget=Math.max(0,num(f.budget));data.settings.employerRate=Math.min(100,Math.max(0,num(f.employerRate)));save();render();toast('บันทึกการตั้งค่าแล้ว')}});
 document.addEventListener('change',e=>{const t=e.target;
+if(t.dataset.noteInspector){const note=(data.canvasItems||[]).find(n=>n.id===t.dataset.noteInspector);if(note){note.text=t.value;save();render();}return;}
 if(t.dataset.quickId&&t.dataset.quickField){studioQuickSave(t.dataset.quickId,t.dataset.quickField,t.value);return;}
 if(t.dataset.strategyField&&studioSelectedDept){const field=t.dataset.strategyField;studioStrategyFor(studioSelectedDept)[field]=field==='published'?t.checked:t.value;save();render();return;}
 if(t.dataset.kpiIndex!==undefined&&t.dataset.kpiField&&studioSelectedDept){const k=studioStrategyFor(studioSelectedDept).kpis[Number(t.dataset.kpiIndex)];if(k){k[t.dataset.kpiField]=['target','actual'].includes(t.dataset.kpiField)?Math.max(0,num(t.value)):String(t.value);save();render();}return;}if(t.id==='studioEdgePicker'){studioSelectedEdge=t.value;studioTool='edge';render();if(studioSelectedEdge)studioEdgeFocus();return;}if(t.id==='scenarioSelect'){data.currentScenario=t.value;studioMultiNodes.clear();studioMultiEdges.clear();studioSelected='';studioSelectedEdge='';studioCameraInitialized=false;save();render()}if(t.id==='employeeDept'){employeeDept=t.value;render()}if(t.id==='orgDept'){orgDept=t.value;render()}if(t.id==='orgModeSelect'){orgMode=t.value;render()}if(t.id==='csvInput')importCSV(t.files[0]);if(t.id==='jsonInput')importJSON(t.files[0])});
-document.addEventListener('input',e=>{if(e.target.id==='employeeSearch'){employeeQuery=e.target.value;render()}if(e.target.id==='plannerSearch'){plannerQuery=e.target.value;render()}});
+document.addEventListener('input',e=>{if(e.target.dataset.itemInput){const note=(data.canvasItems||[]).find(n=>n.id===e.target.dataset.itemInput);if(note){note.text=e.target.value;save();}return;}if(e.target.id==='employeeSearch'){employeeQuery=e.target.value;render()}if(e.target.id==='plannerSearch'){plannerQuery=e.target.value;render()}});
 
 
 function studioSelectionCount(){return studioMultiNodes.size+studioMultiEdges.size;}
@@ -688,7 +753,8 @@ function studioSelectionUnlink(){
  }
  studioMultiEdges.clear();studioSelectedEdge='';save();render();toast('ตัดเส้น '+ids.length+' เส้นแล้ว · ไม่ลบพนักงาน');
 }
-function studioCanvasPointerDown(e){if(e.target.closest('.studio-department-head'))return;
+function studioCanvasPointerDown(e){if(e.target.closest('.studio-department-head,.studio-canvas-item'))return;
+if(['sticky','text','shape'].includes(studioTool)&&!e.target.closest('.studio-node')&&e.button===0){const p=studioSelectionWorld(e.clientX,e.clientY);studioItemCreate(studioTool,p.x,p.y);return;}
  const vp=e.target.closest('#studioViewport');
  if(!vp||e.target.closest('[data-action]')||e.target.closest('.studio-minimap')||e.target.closest('.studio-edge-panel')||e.target.closest('.studio-multiselect-bar'))return;
  if(e.button!==0&&e.button!==1)return;
@@ -896,6 +962,36 @@ document.addEventListener('pointerup',function(e){
 },true);
 document.addEventListener('pointercancel',function(e){
  if(studioConnection&&studioConnection.pointer===e.pointerId){studioConnection=null;studioLinkClear();e.stopImmediatePropagation()}
+},true);
+
+
+/* Capture drag exclusively on note header, without triggering canvas marquee or pan. */
+document.addEventListener('pointerdown',function(e){
+ const handle=e.target.closest('[data-note-drag]');
+ if(!handle||e.button!==0)return;
+ const note=(data.canvasItems||[]).find(n=>n.id===handle.dataset.noteDrag);
+ if(!note)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ studioNoteGesture={id:note.id,pointer:e.pointerId,x:e.clientX,y:e.clientY,startX:num(note.x),startY:num(note.y),moved:false};
+ try{handle.setPointerCapture(e.pointerId)}catch(err){}
+},true);
+document.addEventListener('pointermove',function(e){
+ const g=studioNoteGesture;if(!g||e.pointerId!==g.pointer)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const note=(data.canvasItems||[]).find(n=>n.id===g.id);if(!note)return;
+ const dx=(e.clientX-g.x)/studioCamera.z,dy=(e.clientY-g.y)/studioCamera.z;
+ if(Math.abs(dx)+Math.abs(dy)>2)g.moved=true;
+ note.x=Math.max(0,Math.round((g.startX+dx)/10)*10);note.y=Math.max(0,Math.round((g.startY+dy)/10)*10);
+ const node=document.querySelector('[data-item-id="'+CSS.escape(g.id)+'"]');
+ if(node){node.style.left=note.x+'px';node.style.top=note.y+'px';}
+},true);
+document.addEventListener('pointerup',function(e){
+ const g=studioNoteGesture;if(!g||e.pointerId!==g.pointer)return;
+ e.preventDefault();e.stopImmediatePropagation();studioNoteGesture=null;
+ studioSelectedNote=g.id;studioSelectedDept='';if(g.moved)save();render();
+},true);
+document.addEventListener('pointercancel',function(e){
+ if(studioNoteGesture&&studioNoteGesture.pointer===e.pointerId){studioNoteGesture=null;e.stopImmediatePropagation();render();}
 },true);
 
 document.addEventListener('pointerdown',studioCanvasPointerDown);document.addEventListener('pointermove',studioCanvasPointerMove);document.addEventListener('pointerup',studioCanvasPointerUp);document.addEventListener('pointercancel',studioCanvasPointerUp);

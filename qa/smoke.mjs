@@ -324,7 +324,7 @@ try{
   assert.ok(focused,'Salary edit shortcut should focus the new salary field');
   const editor=page.locator('#studioSalaryPlanInput');
   assert.ok(await editor.isVisible(),'Quick inspector should show editable salary scenario field');
-  assert.ok((await page.locator('.studio-salary-comparison').innerText()).includes(base.toLocaleString('th-TH')),'Original base is visible');
+  assert.equal(Number(await page.locator('#studioSalaryBaseInput').inputValue()),base,'Original base is visible in editable field');
   await editor.fill(String(reduced));
   await editor.press('Tab');
   let after=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)),key);

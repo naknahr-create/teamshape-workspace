@@ -73,6 +73,26 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
 .studio-edge-toolbar button:hover{background:#d6f0e5}
 .studio-edge-toolbar button.danger{background:#fff0ed;color:#b33a34}
 .studio-edge-toolbar button.danger:hover{background:#ffe0d9}
+
+/* v2.3 - always-visible edge editing tools and large interactive curve controls */
+.studio-edge-hit{stroke:rgba(5,117,99,.008);pointer-events:stroke;cursor:grab}
+.studio-edge-handle{cursor:grab;stroke:#058c7b;fill:#fff;pointer-events:all}
+.studio-edge-handle[data-edge-handle="mid"]{fill:#078e7b;stroke:#fff;stroke-width:3}
+.studio-edge-handle:active,.studio-edge-hit:active{cursor:grabbing}
+.studio-edge-panel{position:absolute;right:15px;top:53px;z-index:17;width:min(300px,calc(100% - 30px));background:#fff;box-shadow:0 9px 32px #285a4b23;border:1px solid #c4ded6;border-radius:12px;padding:14px;pointer-events:auto;font-size:12px}
+.studio-edge-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.studio-edge-panel-head strong{font-size:12px;color:#194a43}
+.studio-edge-panel-head button{border:0;background:#f0f6f4;color:#406e65;border-radius:7px;font-size:12px;padding:4px 9px;cursor:pointer}
+.studio-edge-panel-hint{font-size:11px;color:#69887e;line-height:1.7;margin:0 0 9px}
+.studio-edge-panel select{width:100%;border:1px solid #cfdfda;border-radius:8px;background:#f9fdfb;color:#2a5148;padding:9px 10px;margin:0 0 10px;outline:none;font-size:11px;text-overflow:ellipsis}
+.studio-edge-panel-buttons{display:flex;gap:6px;flex-wrap:wrap}
+.studio-edge-panel-buttons button{flex:1;min-width:90px;background:#e8f5f0;color:#116f60;border:1px solid #cbe8dd;border-radius:7px;padding:8px 9px;cursor:pointer;font-size:11px;font-weight:650}
+.studio-edge-panel-buttons button.danger{background:#fff0ed;color:#ae3b32;border-color:#f2c9c3}
+.studio-edge-panel-relationship{font-size:10px;color:#315a51;background:#f0f8f4;border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.6}
+.studio-canvas-tools .studio-edge-tool{width:auto;min-width:75px;padding:5px 10px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;font-weight:750}
+.studio-canvas-tools .studio-edge-tool.active{color:#076f63;background:#d9f2e9}
+.studio-edge-toolbar{display:none!important}
+@media(max-width:690px){.studio-edge-panel{right:7px;top:48px;width:min(272px,calc(100% - 14px));padding:10px}.studio-canvas-tools{left:8px;bottom:12px}.studio-canvas-tools .studio-edge-tool{min-width:60px;padding:5px}}
 </style>
 </head>
 <body>
@@ -230,7 +250,7 @@ function studioPositionMap(rows){data.layouts=data.layouts||{};const k=studioLay
 function studioPersistPositions(){data.layouts=data.layouts||{};data.layouts[studioLayoutKey()]={...(data.layouts[studioLayoutKey()]||{}),...studioPositions};save();}
 function studioBounds(){const v=Object.values(studioPositions);if(!v.length)return {x:0,y:0,w:960,h:800};const xs=v.map(p=>p.x),ys=v.map(p=>p.y);const left=Math.min(...xs),top=Math.min(...ys);return {x:left,y:top,w:Math.max(...xs)+studioW-left,h:Math.max(...ys)+studioH-top};}
 function studioSetZoom(z,point){const viewport=$('#studioViewport');if(!viewport)return;const r=viewport.getBoundingClientRect(),cx=point?point.clientX-r.left:r.width/2,cy=point?point.clientY-r.top:r.height/2;const old=studioCamera.z;studioCamera.z=Math.max(.35,Math.min(1.65,z));studioCamera.x=cx-(cx-studioCamera.x)/old*studioCamera.z;studioCamera.y=cy-(cy-studioCamera.y)/old*studioCamera.z;studioApplyCamera();}
-function studioApplyCamera(){const el=$('#studioWorld');if(el)el.style.transform=`translate(${studioCamera.x}px,${studioCamera.y}px) scale(${studioCamera.z})`;const pct=$('#studioZoomPct');if(pct)pct.textContent=Math.round(studioCamera.z*100)+'%';studioUpdateMinimap();}
+function studioApplyCamera(){const el=$('#studioWorld');if(el)el.style.transform=`translate(${studioCamera.x}px,${studioCamera.y}px) scale(${studioCamera.z})`;const pct=$('#studioZoomPct');if(pct)pct.textContent=Math.round(studioCamera.z*100)+'%';studioUpdateMinimap();if(studioSelectedEdge)studioDrawEdges();}
 function studioFit(){const el=$('#studioViewport');if(!el)return;const b=studioBounds(),w=el.clientWidth,h=el.clientHeight;studioCamera.z=Math.max(.35,Math.min(1.05,Math.min((w-125)/Math.max(350,b.w),(h-145)/Math.max(340,b.h))));studioCamera.x=(w-(b.x*2+b.w)*studioCamera.z)/2;studioCamera.y=(h-(b.y*2+b.h)*studioCamera.z)/2;studioCameraInitialized=true;studioApplyCamera();}
 function studioCenterNode(id){const el=$('#studioViewport');if(!el||!studioPositions[id])return;const p=studioPositions[id];studioCamera.x=el.clientWidth/2-(p.x+studioW/2)*studioCamera.z;studioCamera.y=el.clientHeight/2-(p.y+studioH/2)*studioCamera.z;studioApplyCamera()}
 function studioInitCamera(){if(studioCameraInitialized){studioApplyCamera();return;}const el=$('#studioViewport');if(!el)return;const anchor=studioPositions['e1']||Object.values(studioPositions)[0]||{x:400,y:90};studioCamera.x=el.clientWidth/2-(anchor.x+studioW/2)*studioCamera.z;studioCamera.y=75-(anchor.y)*studioCamera.z;studioCameraInitialized=true;studioApplyCamera();}
@@ -264,25 +284,47 @@ function studioPaths(rows){
   const selected=studioSelectedEdge===e.id;
   const stroke=e.planned?'#35a68f':e.studioExit?'#d8a2a0':'#b2c5c5';
   let out='<path class="studio-edge-visible'+(selected?' studio-edge-active':'')+'" d="'+d+'" stroke="'+stroke+'" stroke-width="2" stroke-dasharray="'+(e.planned||e.studioExit?'7 7':'none')+'" fill="none"/>';
-  out+='<path class="studio-edge-hit" data-edge-to="'+id+'" aria-label="เลือกเส้นจากหัวหน้าไปยังลูกทีม" d="'+d+'"/>';
+  const z=Math.max(.35,studioCamera.z),hitWidth=Math.max(34,24/z);
+  out+='<path class="studio-edge-hit" data-edge-to="'+id+'" aria-label="คลิกเส้นเพื่อแก้ไข" stroke-width="'+hitWidth+'" d="'+d+'"/>';
   if(selected){
+   const mid=studioEdgeMidpoint(g),r=Math.max(12,10/z);
    out+='<path class="studio-edge-guide" d="M '+g.start.x+' '+g.start.y+' L '+g.c1.x+' '+g.c1.y+' M '+g.end.x+' '+g.end.y+' L '+g.c2.x+' '+g.c2.y+'"/>';
-   out+='<circle class="studio-edge-handle" data-edge-to="'+id+'" data-edge-handle="c1" cx="'+g.c1.x+'" cy="'+g.c1.y+'" r="9" aria-label="ดัดเส้นฝั่งหัวหน้า"/>';
-   out+='<circle class="studio-edge-handle" data-edge-to="'+id+'" data-edge-handle="c2" cx="'+g.c2.x+'" cy="'+g.c2.y+'" r="9" aria-label="ดัดเส้นฝั่งลูกทีม"/>';
+   out+='<circle class="studio-edge-handle" data-edge-to="'+id+'" data-edge-handle="c1" cx="'+g.c1.x+'" cy="'+g.c1.y+'" r="'+r+'" aria-label="ดัดเส้นฝั่งหัวหน้า"/>';
+   out+='<circle class="studio-edge-handle" data-edge-to="'+id+'" data-edge-handle="c2" cx="'+g.c2.x+'" cy="'+g.c2.y+'" r="'+r+'" aria-label="ดัดเส้นฝั่งลูกทีม"/>';
+   out+='<circle class="studio-edge-handle" data-edge-to="'+id+'" data-edge-handle="mid" cx="'+mid.x+'" cy="'+mid.y+'" r="'+(r*1.13)+'" aria-label="ลากจุดกลางเพื่อดัดเส้น"/>';
   }
   return out;
  }).join('');
 }
+
 function studioEdgeRefreshToolbar(){
- const el=$('#studioEdgeToolbar');if(!el)return;
- const row=studioPeople().find(e=>e.id===studioSelectedEdge);
- const g=studioEdgeGeometry(row);
- if(!g){el.style.display='none';el.replaceChildren();return;}
+ const el=$('#studioEdgeToolbar');
+ if(el)el.style.display='none';
+}
+function studioEdgePanelHTML(rows){
+ if(studioTool!=='edge'&&!studioSelectedEdge)return '';
+ const map=new Map(rows.map(e=>[e.id,e]));
+ const edges=rows.filter(e=>e.managerId&&map.has(e.managerId)&&e.id!==e.managerId);
+ const selected=edges.find(e=>e.id===studioSelectedEdge);
+ return '<div id="studioEdgePanel" class="studio-edge-panel" aria-label="เครื่องมือจัดเส้น">'
+ +'<div class="studio-edge-panel-head"><strong>✎ เครื่องมือจัดการเส้น</strong><button type="button" data-action="edge-close">ปิด ×</button></div>'
+ +'<p class="studio-edge-panel-hint">เลือกเส้นจากรายการ หรือคลิกเส้นบนผัง แล้วลากจุดเขียวตรงกลางเพื่อดัดโค้ง</p>'
+ +'<select id="studioEdgePicker" aria-label="เลือกสายรายงาน"><option value="">— เลือกเส้นหัวหน้า → ลูกทีม —</option>'
+ +edges.map(e=>'<option value="'+h(e.id)+'" '+(studioSelectedEdge===e.id?'selected':'')+'>'+h((map.get(e.managerId)?.name||'หัวหน้า')+' → '+e.name)+'</option>').join('')
+ +'</select>'
+ +(selected?'<div class="studio-edge-panel-relationship">กำลังแก้ไข: '+h(map.get(selected.managerId).name)+' → '+h(selected.name)+'<br>ลากจุดจับ 3 จุด หรือจับตัวเส้นในโหมดแก้เส้น</div>':'<div class="studio-edge-panel-relationship">เลือกเส้นก่อน หรือสร้างเส้นใหม่โดยลากจาก ● ใต้หัวหน้าไปยังลูกทีม</div>')
+ +(selected?'<div class="studio-edge-panel-buttons"><button type="button" data-action="edge-focus">ซูมไปยังเส้น</button><button type="button" data-action="edge-auto">คืนเส้นอัตโนมัติ</button><button type="button" class="danger" data-action="edge-delete">ลบเส้น</button></div>':'')
+ +'</div>';
+}
+function studioEdgeFocus(){
+ const row=studioPeople().find(x=>x.id===studioSelectedEdge);
+ const g=studioEdgeGeometry(row),vp=$('#studioViewport');
+ if(!g||!vp)return;
+ studioCamera.z=Math.max(.85,studioCamera.z);
  const m=studioEdgeMidpoint(g);
- el.style.left=Math.max(10,Math.min(3100,Math.round(m.x+20)))+'px';
- el.style.top=Math.max(10,Math.round(m.y-52))+'px';
- el.style.display='flex';
- el.innerHTML='<button type="button" data-action="edge-auto" title="คืนรูปทรงเส้นให้ระบบจัดอัตโนมัติ">คืนเส้นอัตโนมัติ</button><button type="button" class="danger" data-action="edge-delete" title="ลบเส้นนี้และตัดความสัมพันธ์หัวหน้า">ลบเส้น</button>';
+ studioCamera.x=vp.clientWidth/2-m.x*studioCamera.z;
+ studioCamera.y=vp.clientHeight/2-m.y*studioCamera.z;
+ studioCameraInitialized=true;studioApplyCamera();studioDrawEdges();
 }
 function studioDrawEdges(){
  const el=$('#studioEdges');
@@ -301,7 +343,7 @@ function renderCanvasStudio(){const st=stats(),rows=studioPeople(),base=st.curre
 <div class="studio-main">
 <aside class="studio-left ${studioLeftOpen?'studio-mobile-open':''}"><div class="studio-side-top"><div class="studio-side-eyebrow">LAYERS / TEAM</div><h3>โครงสร้างทีม <span>${data.employees.length}</span></h3><div class="studio-search">${ic('search')}<input id="employeeSearch" placeholder="ค้นหาคนหรือตำแหน่ง" value="${h(studioSearch)}" autocomplete="off"></div></div><div class="studio-roster-scroll"><div class="studio-roster-heading">พนักงานปัจจุบัน <span>${filtered.length}</span></div>${filtered.length?filtered.map(studioListItem).join(''):'<div class="studio-placeholder">ไม่พบรายชื่อ</div>'}<div class="studio-roster-heading" style="margin-top:16px">ตำแหน่งรับเพิ่ม <span>${s.hires.length}</span></div>${s.hires.map(e=>`<button class="studio-roster-row future ${studioSelected===e.id?'active':''}" data-action="focus-node" data-id="${h(e.id)}">${studioAvatar({...e,name:e.name||'ตำแหน่งว่าง'})}<span><b>${h(e.role)}</b><small>${money(e.salary)} / เดือน</small></span></button>`).join('')||'<div class="studio-placeholder">ยังไม่มีตำแหน่งที่วางแผนรับเพิ่ม</div>'}</div><div class="studio-sidebar-footer"><button class="studio-action" data-action="add-hire">${ic('plus')} เพิ่มตำแหน่งใหม่</button><div class="studio-side-links"><button data-action="export-csv">${ic('download')} ส่งออก CSV</button><button data-action="template-csv">ไฟล์ตัวอย่าง</button></div></div></aside>
 <section class="studio-center" aria-label="ผังองค์กร Canvas"><div class="studio-canvas-header"><div class="studio-mode"><button data-action="org-mode" data-mode="planned" class="${orgMode==='planned'?'active':''}">ผังตามแผน</button><button data-action="org-mode" data-mode="current" class="${orgMode==='current'?'active':''}">ผังปัจจุบัน</button></div><span class="studio-canvas-headnote">ลาก ● เพื่อเชื่อมคน · คลิกเส้นเพื่อแก้ไข/ลบ · ลากจุดจับเพื่อดัดเส้น · ลากการ์ดเพื่อจัดตำแหน่ง</span><span class="studio-canvas-fill"></span><button class="studio-icon-button studio-mobile-only" data-action="mobile-people" title="รายชื่อ">${ic('users')}</button><button class="studio-icon-button studio-mobile-only" data-action="mobile-inspector" title="รายละเอียด">${ic('settings')}</button></div>
-<div id="studioViewport" class="studio-viewport ${studioTool==='hand'?'hand-mode':''}"><div class="studio-canvas-background"></div><div id="studioWorld" class="studio-world"><svg id="studioEdges" class="studio-edges" width="3400" height="3200" viewBox="0 0 3400 3200">${studioPaths(rows)}</svg><div id="studioEdgeToolbar" class="studio-edge-toolbar" aria-label="แก้ไขเส้นเชื่อม"></div>${rows.map(studioCard).join('')}</div><div class="studio-canvas-caption"><span class="studio-canvas-dot"></span> ${h(s.name)} <span>·</span> ${rows.length} การ์ดบน Canvas ${data.demo?'· ข้อมูลตัวอย่าง':''}</div><div class="studio-canvas-tools"><button class="${studioTool==='select'?'active':''}" data-action="tool-select" title="เลือก / ลากการ์ด">${ic('edit')}</button><button class="${studioTool==='hand'?'active':''}" data-action="tool-hand" title="มือเลื่อนผัง">${ic('people')}</button><span></span><button data-action="reset-layout" title="จัดผังใหม่อัตโนมัติ">${ic('refresh')}</button></div><div class="studio-zoom-box"><button data-action="canvas-zoom-out" title="ซูมออก">−</button><span id="studioZoomPct">${Math.round(studioCamera.z*100)}%</span><button data-action="canvas-zoom-in" title="ซูมเข้า">+</button><button class="studio-fit" data-action="canvas-fit" title="ดูทั้งผัง">Fit</button></div><div class="studio-minimap"><div class="studio-minimap-label">OVERVIEW</div><div id="studioMiniMap" class="studio-mini-content"></div></div></div>
+<div id="studioViewport" class="studio-viewport ${studioTool==='hand'?'hand-mode':''}"><div class="studio-canvas-background"></div><div id="studioWorld" class="studio-world"><svg id="studioEdges" class="studio-edges" width="3400" height="3200" viewBox="0 0 3400 3200">${studioPaths(rows)}</svg><div id="studioEdgeToolbar" class="studio-edge-toolbar" aria-label="แก้ไขเส้นเชื่อม"></div>${rows.map(studioCard).join('')}</div><div class="studio-canvas-caption"><span class="studio-canvas-dot"></span> ${h(s.name)} <span>·</span> ${rows.length} การ์ดบน Canvas ${data.demo?'· ข้อมูลตัวอย่าง':''}</div>${studioEdgePanelHTML(rows)}<div class="studio-canvas-tools"><button class="${studioTool==='select'?'active':''}" data-action="tool-select" title="เลือก / ลากการ์ด">${ic('edit')}</button><button class="${studioTool==='hand'?'active':''}" data-action="tool-hand" title="มือเลื่อนผัง">${ic('people')}</button><button class="studio-edge-tool ${studioTool==='edge'?'active':''}" data-action="tool-edge" title="เลือก ดัด และลบเส้น">↝ เส้น</button><span></span><button data-action="reset-layout" title="จัดผังใหม่อัตโนมัติ">${ic('refresh')}</button></div><div class="studio-zoom-box"><button data-action="canvas-zoom-out" title="ซูมออก">−</button><span id="studioZoomPct">${Math.round(studioCamera.z*100)}%</span><button data-action="canvas-zoom-in" title="ซูมเข้า">+</button><button class="studio-fit" data-action="canvas-fit" title="ดูทั้งผัง">Fit</button></div><div class="studio-minimap"><div class="studio-minimap-label">OVERVIEW</div><div id="studioMiniMap" class="studio-mini-content"></div></div></div>
 <div class="studio-bottom"><div class="studio-bottom-left"><span class="studio-live"></span> กำลังจำลองแผน <span class="studio-bottom-sep"></span><b>${data.employees.length} → ${st.month12.headcount} คน</b><span class="studio-bottom-sep"></span><span class="negative">−${st.changed} ออก</span><span class="positive">+${st.hires} เข้า</span></div><button class="studio-bottom-action" data-action="rename-scenario">${ic('edit')} เปลี่ยนชื่อแผน</button></div></section>
 <aside class="studio-right ${studioRightOpen?'studio-mobile-open':''}">${studioInspector()}<div class="studio-side-bottom"><div class="studio-side-eyebrow">FINANCIAL IMPACT</div><div class="studio-side-impact"><span>${st.annualSave>=0?'ประหยัดสุทธิปีแรก':'ต้นทุนสุทธิเพิ่มปีแรก'}</span><strong class="${st.annualSave>=0?'positive':'negative'}">${st.annualSave>=0?'+':'−'}${money(Math.abs(st.annualSave))}</strong></div><div class="studio-impact-grid"><div><small>จ่ายครั้งเดียว</small><b>${money(st.oneTime)}</b></div><div><small>งบต่อเดือน</small><b>${money(st.budget)}</b></div></div><div class="studio-mini-note">ตัวเลขรวมจากแผน 12 เดือน ยังไม่คำนวณค่าชดเชยตามกฎหมายอัตโนมัติ</div></div></aside>
 </div><div class="studio-footer"><span>${ic('info')} ไฟล์นี้เป็น Workspace ในเครื่อง ข้อมูลไม่ซิงก์ข้ามอุปกรณ์</span><div><span class="studio-legend current"></span> พนักงานเดิม <span class="studio-legend new"></span> จ้างเพิ่ม <span class="studio-legend exit"></span> เสนอให้ออก</div></div></div>`;}
@@ -313,12 +355,15 @@ function closeModal(){modal=null;render()}
 function confirmAction(question){return window.confirm(question)}
 function action(name,el){switch(name){
 case 'disconnect-manager':studioDisconnectManager(el.dataset.id);return;
+case 'edge-close':studioSelectedEdge='';studioTool='select';render();return;
+case 'edge-focus':studioEdgeFocus();return;
 case 'edge-auto':if(studioSelectedEdge){delete studioEdgeRouteMap()[studioSelectedEdge];save();studioDrawEdges();toast('จัดเส้นให้เป็นโค้งอัตโนมัติแล้ว')}return;
 case 'edge-delete':if(studioSelectedEdge){const id=studioSelectedEdge;studioSelectedEdge='';studioDisconnectManager(id);}return;
 case 'focus-node':studioSelectedEdge='';studioSelected=el.dataset.id;studioLeftOpen=false;studioRightOpen=true;render();studioCenterNode(studioSelected);return;
 case 'mobile-people':studioLeftOpen=!studioLeftOpen;studioRightOpen=false;render();return;
 case 'mobile-inspector':studioRightOpen=!studioRightOpen;studioLeftOpen=false;render();return;
-case 'tool-select':studioTool='select';render();return;case 'tool-hand':studioTool='hand';render();return;
+case 'tool-select':studioTool='select';studioSelectedEdge='';render();return;case 'tool-hand':studioTool='hand';studioSelectedEdge='';render();return;
+case 'tool-edge':studioTool='edge';render();return;
 case 'canvas-zoom-out':studioSetZoom(studioCamera.z-.12);return;case 'canvas-zoom-in':studioSetZoom(studioCamera.z+.12);return;
 case 'canvas-fit':studioFit();return;
 case 'reset-layout':if(confirmAction('จัดตำแหน่งการ์ดทั้งหมดใหม่อัตโนมัติ?')){data.layouts=data.layouts||{};delete data.layouts[studioLayoutKey()];save();studioCameraInitialized=false;render();toast('จัดผังใหม่แล้ว')}return;
@@ -359,10 +404,10 @@ async function importCSV(file){if(!file)return;try{const txt=await file.text(),r
 async function importJSON(file){if(!file)return;try{const d=JSON.parse(await file.text());if(!validData(d)||d.employees.length>10000)throw Error('รูปแบบไฟล์ไม่ถูกต้อง');if(!confirmAction('นำเข้าไฟล์สำรองจะเขียนทับข้อมูลทั้งหมดในเครื่องนี้ ต้องการดำเนินการต่อหรือไม่?'))return;data=d;normalize();if(!data.scenarios.length){data.scenarios=[{id:uid(),name:'แผนหลัก',changes:{},hires:[],notes:''}];data.currentScenario=data.scenarios[0].id}if(!data.scenarios.some(s=>s.id===data.currentScenario))data.currentScenario=data.scenarios[0].id;save();view='overview';render();toast('คืนค่าข้อมูลจาก JSON แล้ว')}catch(e){alert('ไม่สามารถนำเข้า JSON: '+e.message)}finally{$('#jsonInput').value=''}}
 document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(el){e.preventDefault();action(el.dataset.action,el)}else if(e.target?.id==='modalBackdrop')closeModal()});
 document.addEventListener('submit',e=>{if(e.target.id==='quickBudgetForm'){e.preventDefault();data.settings.budget=Math.max(0,num(new FormData(e.target).get('budget')));save();render();toast('บันทึกงบประมาณแล้ว')}if(e.target.id==='modalForm'){e.preventDefault();formSubmit(e.target)}if(e.target.id==='settingsForm'){e.preventDefault();const f=Object.fromEntries(new FormData(e.target));data.company=String(f.company||'TeamShape');data.settings.startMonth=f.startMonth||'2026-11';data.settings.budget=Math.max(0,num(f.budget));data.settings.employerRate=Math.min(100,Math.max(0,num(f.employerRate)));save();render();toast('บันทึกการตั้งค่าแล้ว')}});
-document.addEventListener('change',e=>{const t=e.target;if(t.id==='scenarioSelect'){data.currentScenario=t.value;studioSelected='';studioSelectedEdge='';studioCameraInitialized=false;save();render()}if(t.id==='employeeDept'){employeeDept=t.value;render()}if(t.id==='orgDept'){orgDept=t.value;render()}if(t.id==='orgModeSelect'){orgMode=t.value;render()}if(t.id==='csvInput')importCSV(t.files[0]);if(t.id==='jsonInput')importJSON(t.files[0])});
+document.addEventListener('change',e=>{const t=e.target;if(t.id==='studioEdgePicker'){studioSelectedEdge=t.value;studioTool='edge';render();if(studioSelectedEdge)studioEdgeFocus();return;}if(t.id==='scenarioSelect'){data.currentScenario=t.value;studioSelected='';studioSelectedEdge='';studioCameraInitialized=false;save();render()}if(t.id==='employeeDept'){employeeDept=t.value;render()}if(t.id==='orgDept'){orgDept=t.value;render()}if(t.id==='orgModeSelect'){orgMode=t.value;render()}if(t.id==='csvInput')importCSV(t.files[0]);if(t.id==='jsonInput')importJSON(t.files[0])});
 document.addEventListener('input',e=>{if(e.target.id==='employeeSearch'){employeeQuery=e.target.value;render()}if(e.target.id==='plannerSearch'){plannerQuery=e.target.value;render()}});
 
-function studioCanvasPointerDown(e){const vp=e.target.closest('#studioViewport');if(!vp||e.target.closest('[data-action]')||e.target.closest('.studio-minimap'))return;const card=e.target.closest('.studio-node');if(e.button!==0&&e.button!==1)return;if(studioSelectedEdge){studioSelectedEdge='';studioDrawEdges();}const nodeID=card?.dataset.nodeId;const isDragNode=!!nodeID&&studioTool==='select'&&e.button===0;const startPos=isDragNode?{...studioPositions[nodeID]}:null;studioGesture={type:isDragNode?'node':'pan',id:nodeID,pointer:e.pointerId,x:e.clientX,y:e.clientY,startPos,startCam:{...studioCamera},moved:false};if(card)card.setPointerCapture?.(e.pointerId);else vp.setPointerCapture?.(e.pointerId);if(isDragNode)card.classList.add('being-dragged');else vp.classList.add('is-panning');}
+function studioCanvasPointerDown(e){const vp=e.target.closest('#studioViewport');if(!vp||e.target.closest('[data-action]')||e.target.closest('.studio-minimap')||e.target.closest('.studio-edge-panel'))return;const card=e.target.closest('.studio-node');if(e.button!==0&&e.button!==1)return;if(studioSelectedEdge){studioSelectedEdge='';studioDrawEdges();}const nodeID=card?.dataset.nodeId;if(card&&studioTool==='edge'&&e.button===0){studioSelected=nodeID;studioRightOpen=true;render();return;}const isDragNode=!!nodeID&&studioTool==='select'&&e.button===0;const startPos=isDragNode?{...studioPositions[nodeID]}:null;studioGesture={type:isDragNode?'node':'pan',id:nodeID,pointer:e.pointerId,x:e.clientX,y:e.clientY,startPos,startCam:{...studioCamera},moved:false};if(card)card.setPointerCapture?.(e.pointerId);else vp.setPointerCapture?.(e.pointerId);if(isDragNode)card.classList.add('being-dragged');else vp.classList.add('is-panning');}
 function studioCanvasPointerMove(e){const g=studioGesture;if(!g||e.pointerId!==g.pointer)return;const dx=e.clientX-g.x,dy=e.clientY-g.y;if(Math.abs(dx)+Math.abs(dy)>4)g.moved=true;if(g.type==='pan'){studioCamera.x=g.startCam.x+dx;studioCamera.y=g.startCam.y+dy;studioApplyCamera()}else if(g.moved){let p={x:Math.round((g.startPos.x+dx/studioCamera.z)/10)*10,y:Math.round((g.startPos.y+dy/studioCamera.z)/10)*10};studioPositions[g.id]=p;const node=document.querySelector(`[data-node-id="${CSS.escape(g.id)}"]`);if(node){node.style.left=p.x+'px';node.style.top=p.y+'px'}studioDrawEdges()}}
 function studioCanvasPointerUp(e){const g=studioGesture;if(!g||e.pointerId!==g.pointer)return;studioGesture=null;const vp=$('#studioViewport');vp?.classList.remove('is-panning');$$('.being-dragged').forEach(e=>e.classList.remove('being-dragged'));if(g.type==='node'){if(g.moved){studioSelected=g.id;studioRightOpen=true;studioPersistPositions();render();studioSuppressClick=true;setTimeout(()=>studioSuppressClick=false,80)}else{studioSelected=g.id;studioRightOpen=true;render()}}}
 
@@ -437,8 +482,9 @@ document.addEventListener('pointerdown',function(e){
  const id=hit.getAttribute('data-edge-to');
  if(!id)return;
  e.preventDefault();e.stopImmediatePropagation();
- studioSelectedEdge=id;
- studioEdgeGesture={id,handle:hit.getAttribute('data-edge-handle'),pointer:e.pointerId,moved:false};
+ studioSelectedEdge=id;studioTool='edge';
+ const row=studioPeople().find(x=>x.id===id);
+ studioEdgeGesture={id,handle:hit.getAttribute('data-edge-handle')||'bend',pointer:e.pointerId,moved:false,startX:e.clientX,startY:e.clientY,startGeom:studioEdgeGeometry(row)};
  const svg=$('#studioEdges');try{svg.setPointerCapture(e.pointerId)}catch(ex){}
  studioDrawEdges();
 },true);
@@ -446,21 +492,29 @@ document.addEventListener('pointermove',function(e){
  const g=studioEdgeGesture;if(!g||e.pointerId!==g.pointer)return;
  e.preventDefault();e.stopImmediatePropagation();
  if(!g.handle)return;
+ const dx=(e.clientX-g.startX)/studioCamera.z,dy=(e.clientY-g.startY)/studioCamera.z;
+ if(Math.abs(dx)+Math.abs(dy)<2&&!g.moved)return;
  g.moved=true;
  const row=studioPeople().find(x=>x.id===g.id),geo=studioEdgeGeometry(row);
- if(!geo)return;
- const world=studioLinkWorld(e.clientX,e.clientY);
- const base=g.handle==='c1'?geo.start:geo.end;
+ if(!geo||!g.startGeom)return;
  const map=studioEdgeRouteMap();
  const route=map[g.id]||{};
- route[g.handle]={dx:Math.round((world.x-base.x)*10)/10,dy:Math.round((world.y-base.y)*10)/10};
+ const round=n=>Math.round(n*10)/10;
+ if(g.handle==='c1'||g.handle==='c2'){
+  const world=studioLinkWorld(e.clientX,e.clientY);
+  const base=g.handle==='c1'?geo.start:geo.end;
+  route[g.handle]={dx:round(world.x-base.x),dy:round(world.y-base.y)};
+ }else{
+  route.c1={dx:round(g.startGeom.c1.x+dx-geo.start.x),dy:round(g.startGeom.c1.y+dy-geo.start.y)};
+  route.c2={dx:round(g.startGeom.c2.x+dx-geo.end.x),dy:round(g.startGeom.c2.y+dy-geo.end.y)};
+ }
  map[g.id]=route;studioDrawEdges();
 },true);
 document.addEventListener('pointerup',function(e){
  const g=studioEdgeGesture;if(!g||e.pointerId!==g.pointer)return;
  e.preventDefault();e.stopImmediatePropagation();studioEdgeGesture=null;
  try{$('#studioEdges')?.releasePointerCapture(e.pointerId)}catch(ex){}
- if(g.handle){if(g.moved){save();toast('บันทึกรูปทรงเส้นแล้ว')}studioDrawEdges();}
+ if(g.handle){if(g.moved){save();toast('บันทึกรูปทรงเส้นแล้ว')}render();}
  else{studioSelectedEdge=g.id;studioSelected=g.id;studioRightOpen=true;render();}
 },true);
 document.addEventListener('pointercancel',function(e){

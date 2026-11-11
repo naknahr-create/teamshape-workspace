@@ -518,6 +518,9 @@ function studioDeptFocus(name){
 function studioDeptInspector(){
  const name=studioSelectedDept,info=studioStrategyFor(name);
  const members=studioPeople().filter(e=>e.dept===name),total=members.length;
+ const currentCost=data.employees.filter(e=>e.dept===name).reduce((a,e)=>a+monthlyCost(e),0);
+ const plannedCost=plannedStaff().filter(e=>e.dept===name).reduce((a,e)=>a+monthlyCost(e),0);
+ const monthlyDelta=currentCost-plannedCost;
  const fields=(n,value,label,extra='')=>'<div class="studio-field"><label>'+label+'</label><input data-strategy-field="'+n+'" value="'+h(value||'')+'" '+extra+'></div>';
  return '<div class="studio-ins-head"><div class="studio-side-eyebrow">DEPARTMENT STRATEGY</div><h3>'+h(name)+'</h3><p>'+total+' ตำแหน่งบน Canvas · แก้ได้ทันที ไม่ต้องเปิดฟอร์มใหม่</p></div>'
  +'<div class="studio-inline-editor">'
@@ -536,6 +539,12 @@ function studioDeptInspector(){
    +'</div>';
  }).join('')
  +'<button class="studio-action primary" data-action="strategy-add-kpi">+ เพิ่ม KPI แผนก</button>'
+ +'<div class="studio-mini-title" style="margin-top:18px">Department Budget & Headcount</div>'
+ +fields('budgetMonthly',info.budgetMonthly||0,'งบเป้าหมายแผนกต่อเดือน (บาท)','type="number" min="0" step="1"')
+ +'<div class="studio-metric-row"><span>ต้นทุนปัจจุบัน</span><b>'+money(currentCost)+'</b></div>'
+ +'<div class="studio-metric-row"><span>ต้นทุนตามแผน</span><b>'+money(plannedCost)+'</b></div>'
+ +'<div class="studio-metric-row"><span>ผลต่างต่อเดือน</span><b style="color:'+(monthlyDelta>=0?'#078875':'#ba4b41')+'">'+(monthlyDelta>=0?'+':'−')+money(Math.abs(monthlyDelta))+'</b></div>'
+ +'<div class="studio-mini-note">ตัวเลขตามแผนบริษัท รวมพนักงานรับใหม่และพนักงานที่เสนอให้ออก แต่ยังไม่รวมค่าใช้จ่ายครั้งเดียวจากการเลิกจ้าง/รับสมัคร</div>'
  +'<label style="display:flex;gap:8px;align-items:center;margin:16px 0;font-size:11px"><input type="checkbox" data-strategy-field="published" '+(info.published?'checked':'')+' style="width:16px">อนุญาตให้แชร์ Goal/KPI ในไฟล์สำหรับพนักงาน</label>'
  +'<div class="studio-inline-help">Goal/KPI จะเก็บในเบราว์เซอร์เครื่องนี้ ยังไม่ซิงก์ข้ามเครื่อง แสดงในไฟล์พนักงานเฉพาะแผนกที่เปิดแชร์เท่านั้น</div>'
  +'<button class="studio-action" data-action="strategy-close">กลับไปผังองค์กร</button>'

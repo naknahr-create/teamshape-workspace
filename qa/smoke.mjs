@@ -67,10 +67,15 @@ try{
   assert.equal(state.strategy['QA Innovation'].kpis[0].name,'Experiments shipped','Rename must retain KPI');
   assert.ok(!state.strategy['QA Research'],'Old strategy key must be removed');
   await page.locator('.studio-roster-row[data-action="focus-node"]').first().click();
-  const person=page.locator('[data-quick-field="dept"]');
+  const person=page.locator('select[data-quick-field="dept"]');
+  assert.ok(await person.isVisible(),'Department must be a real select, not a filtered datalist');
+  const deptOptions=await person.locator('option').allTextContents();
+  assert.ok(deptOptions.includes('QA Innovation')&&deptOptions.includes('Dealmaker')&&deptOptions.length>=3,'All departments must be selectable even when another one is selected');
   const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')).employees.map(e=>e.dept));
-  await person.fill('QA Innovation');
-  await person.press('Tab');
+  const originalSalary=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')).employees[0].salary);
+  await person.selectOption({label:'QA Innovation'});
+  const afterSalary=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')).employees[0].salary);
+  assert.equal(afterSalary,originalSalary,'Changing departments must not change salary');
   state=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')));
   assert.ok(state.employees.some(e=>e.dept==='QA Innovation'),'New department must be assignable from Inspector');
   await page.locator('.studio-dept-shortcut[data-dept="QA Innovation"]').click();

@@ -164,6 +164,21 @@ html,body,#app{height:100%;min-height:0;overflow:hidden}
 .studio-share-list button:hover{background:#eef9f4}
 .studio-share-list p{font-size:10px;line-height:1.5;color:#67877f;margin:6px;padding:7px;background:#f1f7f4;border-radius:6px}
 @media(max-width:720px){.studio-share-menu summary{font-size:10px;padding:6px 8px}.studio-share-list{right:0}}
+
+/* Mobile canvas ergonomics: separate zoom controls from scrolling tool dock. */
+@media(max-width:700px){
+ .studio-canvas-tools{position:absolute;left:7px;right:7px;bottom:9px;width:calc(100% - 14px);max-width:none;z-index:13;display:flex;align-items:center;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;gap:5px;padding:6px;border-radius:11px}
+ .studio-canvas-tools::-webkit-scrollbar{display:none}
+ .studio-canvas-tools button{flex:0 0 auto;min-width:34px;min-height:34px}
+ .studio-canvas-tools>span{flex:0 0 1px}
+ .studio-zoom-box{right:9px;bottom:70px;z-index:12}
+ .studio-minimap{right:9px;bottom:131px;transform:scale(.76);transform-origin:bottom right}
+ .studio-canvas-caption{display:none}
+ .studio-canvas-headnote{display:none}
+ .studio-department-head{max-width:calc(100% - 24px)}
+ .studio-edge-panel{right:6px;top:55px}
+ .studio-multiselect-bar{max-width:calc(100% - 12px)}
+}
 </style>
 </head>
 <body>

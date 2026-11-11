@@ -267,12 +267,22 @@ try{
  await check('multi-select and group reposition',async()=>{
   await page.locator('[data-action="selection-all"]').click();
   assert.ok(await page.locator('#studioMultiActions').isVisible());
+  await page.locator('[data-action="canvas-fit"]').click();
   const before=await page.locator('.studio-node').evaluateAll(nodes=>nodes.slice(0,2).map(n=>Number.parseFloat(n.style.left)));
-  const first=page.locator('.studio-node').first(),box=await first.boundingBox();
-  assert.ok(box&&box.width>0);
-  await page.mouse.move(box.x+box.width*.48,box.y+box.height*.46);
+  const anchor=await page.evaluate(()=>{
+    const v=document.querySelector('#studioViewport').getBoundingClientRect();
+    const node=[...document.querySelectorAll('.studio-node')].find(n=>{
+      const r=n.getBoundingClientRect(),x=r.left+r.width*.45,y=r.top+r.height*.5;
+      return x>v.left+28&&x<v.right-28&&y>v.top+46&&y<v.bottom-58;
+    });
+    if(!node)return null;
+    const r=node.getBoundingClientRect();
+    return {x:r.left+r.width*.45,y:r.top+r.height*.5,id:node.dataset.nodeId};
+  });
+  assert.ok(anchor,'At least one selected node must be visible after Fit');
+  await page.mouse.move(anchor.x,anchor.y);
   await page.mouse.down();
-  await page.mouse.move(box.x+box.width*.48+60,box.y+box.height*.46+28,{steps:8});
+  await page.mouse.move(anchor.x+60,anchor.y+28,{steps:8});
   await page.mouse.up();
   const after=await page.locator('.studio-node').evaluateAll(nodes=>nodes.slice(0,2).map(n=>Number.parseFloat(n.style.left)));
   assert.ok(Math.abs(after[0]-before[0])>0&&Math.abs(after[1]-before[1])>0,'both selected cards should move together');

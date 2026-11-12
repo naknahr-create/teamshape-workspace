@@ -520,6 +520,97 @@ try{
   });
   assert.ok(bounds.zoom.bottom<=bounds.tools.top||bounds.tools.bottom<=bounds.zoom.top,'mobile zoom and tools must not overlap');
  });
+
+ await check('mobile summary, bottom navigation and no horizontal overflow',async()=>{
+   const bottom=mobile.locator('.studio-mobile-nav');
+   assert.ok(await bottom.isVisible(),'Mobile bottom navigation must be visible');
+   assert.equal(await bottom.locator('button').count(),5,'Five clear primary mobile actions');
+   const stats=mobile.locator('.studio-subbar .studio-stat');
+   assert.equal(await stats.count(),3);
+   for(const n of [0,1,2]){
+     assert.ok(await stats.nth(n).isVisible(),'All salary summary cards visible');
+     const b=await stats.nth(n).boundingBox();
+     assert.ok(b&&b.x>=0&&b.x+b.width<=391,'Summary card must fit 390px phone');
+   }
+   const overflow=await mobile.evaluate(()=>({scroll:document.documentElement.scrollWidth,width:window.innerWidth}));
+   assert.ok(overflow.scroll<=overflow.width+1,'Phone page should not horizontally overflow');
+   const navBox=await bottom.boundingBox();
+   assert.ok(navBox.y>680&&navBox.y<844,'Nav stays thumb-accessible at the bottom');
+   const viewportBox=await mobile.locator('#studioViewport').boundingBox();
+   assert.ok(viewportBox&&viewportBox.height>330,'Canvas must receive the main mobile viewport');
+ });
+ await check('mobile team list becomes a searchable bottom sheet',async()=>{
+   await mobile.locator('.studio-mobile-nav [data-action="mobile-people"]').tap();
+   assert.ok(await mobile.locator('.studio-left.studio-mobile-open').isVisible());
+   assert.ok(await mobile.locator('.studio-mobile-shade').isVisible(),'Tap-outside backdrop appears');
+   const search=mobile.locator('#employeeSearch');
+   assert.ok(await search.isVisible());
+   await search.fill('zzzzz_nomatch');
+   assert.ok((await mobile.locator('.studio-left').innerText()).includes('ไม่พบรายชื่อ'));
+   await search.fill('');
+   const person=mobile.locator('.studio-left .studio-roster-row[data-action="focus-node"][data-id="e1"]');
+   assert.ok(await person.isVisible());
+   await person.tap();
+   assert.ok(await mobile.locator('.studio-right.studio-mobile-open').isVisible(),'Selecting employee opens mobile editing sheet');
+   assert.equal(await mobile.locator('.studio-left.studio-mobile-open').count(),0);
+   assert.ok(await mobile.locator('#studioSalaryBaseInput').isVisible(),'Old salary editable from mobile inspector');
+   assert.ok(await mobile.locator('#studioSalaryPlanInput').isVisible(),'Planned salary editable from mobile inspector');
+   await mobile.locator('.studio-right [data-action="mobile-close"]').tap();
+   assert.equal(await mobile.locator('.studio-mobile-shade').count(),0,'Close sheet clears overlay');
+ });
+ await check('phone quick salary editor is a touch-friendly bottom sheet',async()=>{
+   const card=mobile.locator('.studio-node[data-node-id="e1"] [data-action="salary-edit"]');
+   assert.ok(await card.count());
+   await card.tap();
+   assert.ok(await mobile.locator('#modalForm[data-type="salary-quick"]').isVisible());
+   const oldPay=mobile.locator('#studioQuickBase'),newPay=mobile.locator('#studioQuickPlanned');
+   assert.ok(await oldPay.isVisible()&&await newPay.isVisible());
+   const font=await oldPay.evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+   assert.ok(font>=16,'Salary fields must be at least 16px to avoid iOS auto-zoom');
+   const body=await mobile.locator('.dialog').boundingBox();
+   assert.ok(body&&body.width<=391&&body.x>=0,'Dialog must fit phone viewport');
+   await oldPay.fill('20000');await newPay.fill('18000');
+   assert.ok((await mobile.locator('#studioQuickDifference').innerText()).includes('2,000'),'Mobile salary difference updates while typing');
+   await mobile.locator('[data-action="submit-modal"]').tap();
+   const saved=await mobile.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')));
+   const sc=saved.scenarios.find(x=>x.id===saved.currentScenario);
+   assert.equal(sc.finance.baseline.employees.find(x=>x.id==='e1').salary,20000);
+   assert.equal(sc.changes.e1.salaryOverride,18000);
+   assert.ok(!await mobile.locator('#modalForm[data-type="salary-quick"]').count());
+ });
+ await check('phone add-forecast and tool drawer are discoverable',async()=>{
+   await mobile.locator('.studio-mobile-nav [data-action="mobile-tools"]').tap();
+   assert.ok(await mobile.locator('.studio-canvas-tools.studio-mobile-tools-open').isVisible());
+   await mobile.locator('.studio-canvas-tools [data-action="tool-hand"]').tap();
+   assert.equal(await mobile.locator('.studio-canvas-tools.studio-mobile-tools-open').count(),0);
+   await mobile.locator('.studio-mobile-nav [data-action="add-hire"]').tap();
+   assert.ok(await mobile.locator('#modalForm[data-type="hire"]').isVisible(),'Mobile hiring button must open forecast vacancy form');
+   const dialog=await mobile.locator('.dialog').boundingBox();
+   assert.ok(dialog&&dialog.width<=391,'Forecast form fits the phone');
+   await mobile.locator('[data-action="close-modal"]').first().tap();
+   assert.ok(await mobile.locator('.studio-mobile-nav').isVisible());
+ });
+ await check('one-finger mobile pan and two-finger pinch zoom',async()=>{
+   const details=await mobile.evaluate(()=>{
+     const vp=document.querySelector('#studioViewport'),r=vp.getBoundingClientRect(),world=document.querySelector('#studioWorld');
+     const point=(id,x,y,type)=>new PointerEvent(type,{pointerType:'touch',pointerId:id,button:0,clientX:x,clientY:y,bubbles:true,cancelable:true});
+     const start=world.style.transform;
+     vp.dispatchEvent(point(701,r.left+r.width*.50,r.top+r.height*.57,'pointerdown'));
+     document.dispatchEvent(point(701,r.left+r.width*.50+62,r.top+r.height*.57+34,'pointermove'));
+     document.dispatchEvent(point(701,r.left+r.width*.50+62,r.top+r.height*.57+34,'pointerup'));
+     const panned=world.style.transform;
+     const pct=document.querySelector('#studioZoomPct').textContent;
+     vp.dispatchEvent(point(702,r.left+100,r.top+200,'pointerdown'));
+     vp.dispatchEvent(point(703,r.left+180,r.top+200,'pointerdown'));
+     document.dispatchEvent(point(703,r.left+250,r.top+200,'pointermove'));
+     const pinched=document.querySelector('#studioZoomPct').textContent;
+     document.dispatchEvent(point(702,r.left+100,r.top+200,'pointerup'));
+     document.dispatchEvent(point(703,r.left+250,r.top+200,'pointerup'));
+     return {start,panned,pct,pinched};
+   });
+   assert.notEqual(details.start,details.panned,'One-finger drag pans Canvas rather than drawing a selection rectangle');
+   assert.notEqual(details.pct,details.pinched,'Two-finger gesture changes canvas zoom');
+ });
  await mobile.screenshot({path:'qa-artifacts/mobile.png'});
  await mobile.close();
  assert.deepEqual(errors,[],'JavaScript console page errors');

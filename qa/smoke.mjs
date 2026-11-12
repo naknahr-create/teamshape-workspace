@@ -50,7 +50,7 @@ try{
   stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('teamshape-workforce-v1')).employees[0]);
   assert.equal(stored.role,'QA Role Without Modal','Legacy custom roles remain editable');
   assert.equal(stored.salary,before.salary);
-  await page.locator('[data-action="add-employee"]').click();
+  await page.locator('.studio-topbar [data-action="add-employee"]').click();
   assert.equal(await page.locator('#modalRolePreset option').count(),19,'Add employee modal has 18 choices and custom');
   await page.locator('#modalRolePreset').selectOption('Senior');
   assert.equal(await page.locator('#modalRoleValue').inputValue(),'Senior');

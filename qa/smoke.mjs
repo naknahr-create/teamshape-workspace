@@ -508,7 +508,7 @@ try{
   assert.equal(reset.employees.find(x=>x.id==='e1').salary,masterSalary,'Reset never changes original employee salary');
  });
  await page.screenshot({path:'qa-artifacts/desktop.png',fullPage:false});
- const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,deviceScaleFactor:2});
+ const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:2});
  mobile.on('pageerror',err=>errors.push(err.stack||String(err)));
  await mobile.goto(ROOT,{waitUntil:'networkidle'});
  await check('responsive mobile chart',async()=>{

@@ -763,7 +763,7 @@ function studioSetZoom(z,point){const viewport=$('#studioViewport');if(!viewport
 function studioApplyCamera(){const el=$('#studioWorld');if(el)el.style.transform=`translate(${studioCamera.x}px,${studioCamera.y}px) scale(${studioCamera.z})`;const pct=$('#studioZoomPct');if(pct)pct.textContent=Math.round(studioCamera.z*100)+'%';studioUpdateMinimap();if(studioSelectedEdge)studioDrawEdges();}
 function studioFit(){const el=$('#studioViewport');if(!el)return;const b=studioBounds(),w=el.clientWidth,h=el.clientHeight;studioCamera.z=Math.max(.35,Math.min(1.05,Math.min((w-125)/Math.max(350,b.w),(h-145)/Math.max(340,b.h))));studioCamera.x=(w-(b.x*2+b.w)*studioCamera.z)/2;studioCamera.y=(h-(b.y*2+b.h)*studioCamera.z)/2;studioCameraInitialized=true;studioApplyCamera();}
 function studioCenterNode(id){const el=$('#studioViewport');if(!el||!studioPositions[id])return;const p=studioPositions[id];studioCamera.x=el.clientWidth/2-(p.x+studioW/2)*studioCamera.z;studioCamera.y=el.clientHeight/2-(p.y+studioH/2)*studioCamera.z;studioApplyCamera()}
-function studioInitCamera(){if(studioCameraInitialized){studioApplyCamera();return;}const el=$('#studioViewport');if(!el)return;const anchor=studioPositions['e1']||Object.values(studioPositions)[0]||{x:400,y:90};studioCamera.x=el.clientWidth/2-(anchor.x+studioW/2)*studioCamera.z;studioCamera.y=75-(anchor.y)*studioCamera.z;studioCameraInitialized=true;studioApplyCamera();}
+function studioInitCamera(){if(studioCameraInitialized){studioApplyCamera();return;}const el=$('#studioViewport');if(!el)return;if(el.clientWidth<=700)studioCamera.z=.92;const anchor=studioPositions['e1']||Object.values(studioPositions)[0]||{x:400,y:90};studioCamera.x=el.clientWidth/2-(anchor.x+studioW/2)*studioCamera.z;studioCamera.y=75-(anchor.y)*studioCamera.z;studioCameraInitialized=true;studioApplyCamera();}
 
 function studioEdgeRouteMap(){
  data.edgeRoutes=data.edgeRoutes||{};
@@ -1396,14 +1396,16 @@ case 'item-select':case 'item-color':case 'item-duplicate':case 'item-delete':ca
 case 'finance-open':studioFinanceOpen=!studioFinanceOpen;render();return;
 case 'finance-close':studioFinanceOpen=false;render();return;
 case 'finance-refresh-baseline':studioRefreshBaseline();return;
-case 'focus-node':studioSelectedNote='';studioSelectedDept='';studioMultiNodes.clear();studioMultiEdges.clear();studioSelectedEdge='';studioSelected=el.dataset.id;studioLeftOpen=false;studioRightOpen=true;render();studioCenterNode(studioSelected);return;
-case 'mobile-people':studioLeftOpen=!studioLeftOpen;studioRightOpen=false;render();return;
-case 'mobile-inspector':studioRightOpen=!studioRightOpen;studioLeftOpen=false;render();return;
+case 'focus-node':studioMobileToolsOpen=false;studioSelectedNote='';studioSelectedDept='';studioMultiNodes.clear();studioMultiEdges.clear();studioSelectedEdge='';studioSelected=el.dataset.id;studioLeftOpen=false;studioRightOpen=true;render();studioCenterNode(studioSelected);return;
+case 'mobile-canvas':case 'mobile-close':studioLeftOpen=false;studioRightOpen=false;studioMobileToolsOpen=false;render();return;
+case 'mobile-tools':studioMobileToolsOpen=!studioMobileToolsOpen;studioLeftOpen=false;studioRightOpen=false;render();return;
+case 'mobile-people':studioLeftOpen=!studioLeftOpen;studioRightOpen=false;studioMobileToolsOpen=false;render();return;
+case 'mobile-inspector':studioRightOpen=!studioRightOpen;studioLeftOpen=false;studioMobileToolsOpen=false;render();return;
 case 'selection-unlink':studioSelectionUnlink();return;
 case 'selection-clear':studioSelectionClear();return;
 case 'selection-all':studioMultiNodes=new Set(studioPeople().map(x=>x.id));studioMultiEdges.clear();studioSelected=studioMultiNodes.values().next().value||'';studioSelectedEdge='';studioTool='select';render();return;
-case 'tool-select':studioTool='select';studioSelectedEdge='';render();return;case 'tool-marquee':studioTool='marquee';studioSelectedEdge='';render();return;case 'tool-hand':studioTool='hand';studioSelectedEdge='';render();return;
-case 'tool-edge':studioTool='edge';render();return;
+case 'tool-select':studioMobileToolsOpen=false;studioTool='select';studioSelectedEdge='';render();return;case 'tool-marquee':studioMobileToolsOpen=false;studioTool='marquee';studioSelectedEdge='';render();return;case 'tool-hand':studioMobileToolsOpen=false;studioTool='hand';studioSelectedEdge='';render();return;
+case 'tool-edge':studioMobileToolsOpen=false;studioTool='edge';render();return;
 case 'studio-undo':studioUndo();return;
 case 'studio-redo':studioRedo();return;
 case 'canvas-zoom-out':studioSetZoom(studioCamera.z-.12);return;case 'canvas-zoom-in':studioSetZoom(studioCamera.z+.12);return;
@@ -1420,7 +1422,7 @@ case 'delete-scenario':if(data.scenarios.length===1)return toast('ต้อง�
 case 'close-modal':closeModal();return;case 'submit-modal':$('#modalForm')?.requestSubmit();return;
 case 'delete-employee':if(confirmAction('ลบพนักงานออกจากข้อมูลต้นฉบับจริงหรือไม่? การจำลองให้ออกให้ใช้ “ปรับแผน” แทน')){data.employees=data.employees.filter(e=>e.id!==el.dataset.id);data.employees.forEach(e=>{if(e.managerId===el.dataset.id)e.managerId=''});data.scenarios.forEach(s=>{delete s.changes[el.dataset.id];s.hires.forEach(e=>{if(e.managerId===el.dataset.id)e.managerId=''})});save();closeModal();toast('ลบข้อมูลพนักงานออกจากฐานแล้ว')}return;
 case 'delete-hire':if(confirmAction('ยกเลิกตำแหน่งที่วางแผนรับเพิ่มนี้?')){scenario().hires=scenario().hires.filter(e=>e.id!==el.dataset.id);save();closeModal();toast('ยกเลิกตำแหน่งแล้ว')}return;
-case 'salary-edit':showModal('salary-quick',el.dataset.id);$('#studioQuickBase')?.focus();return;
+case 'salary-edit':studioMobileToolsOpen=false;showModal('salary-quick',el.dataset.id);$('#studioQuickBase')?.focus();return;
 case 'salary-reset':{const employee=data.employees.find(e=>e.id===el.dataset.id);if(employee)studioSavePlannedSalary(employee.id,studioSalaryBase(employee));return;}
 case 'clear-plan-person':delete scenario().changes[el.dataset.id];save();closeModal();toast('คืนค่าแผนเป็นคงไว้');return;
 case 'reset-changes':if(confirmAction('คืนการปรับพนักงานปัจจุบันทั้งหมดในแผนนี้? (ยังเก็บตำแหน่งจ้างใหม่)')){scenario().changes={};save();render()}return;
@@ -1561,7 +1563,7 @@ if(card){studioSelectedNote='';studioSelectedDept='';}
  if(studioSelectedEdge){studioSelectedEdge='';studioDrawEdges();}
  if(id&&studioTool==='edge'&&e.button===0){studioSelected=id;studioRightOpen=true;render();return;}
  let type='pan';
- if(e.button===0&&studioTool!=='hand')type=id?((modifier||(studioTool==='marquee'&&!studioMultiNodes.has(id)))?'toggle':'node'):'marquee';
+ if(e.button===0&&studioTool!=='hand')type=id?((modifier||(studioTool==='marquee'&&!studioMultiNodes.has(id)))?'toggle':'node'):((e.pointerType==='touch'||e.pointerType==='pen')&&studioTool!=='marquee'?'pan':'marquee');
  const priorNodes=new Set(studioMultiNodes),priorEdges=new Set(studioMultiEdges);
  if(type==='node'&&!studioMultiNodes.has(id)){studioMultiNodes=new Set([id]);studioMultiEdges.clear();}
  if(type==='marquee'&&!modifier){studioMultiNodes.clear();studioMultiEdges.clear();studioSelected='';studioSelectedEdge='';}

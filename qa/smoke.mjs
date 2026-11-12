@@ -511,6 +511,7 @@ try{
  const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:2});
  mobile.on('pageerror',err=>errors.push(err.stack||String(err)));
  await mobile.goto(ROOT,{waitUntil:'networkidle'});
+ await mobile.screenshot({path:'qa-artifacts/mobile-first-open.png'});
  await check('responsive mobile chart',async()=>{
   assert.ok(await mobile.locator('.studio-shell').count());
   assert.ok(await mobile.locator('.studio-node').count());
@@ -610,6 +611,18 @@ try{
    });
    assert.notEqual(details.start,details.panned,'One-finger drag pans Canvas rather than drawing a selection rectangle');
    assert.notEqual(details.pct,details.pinched,'Two-finger gesture changes canvas zoom');
+ });
+ await check('phone recenters chosen employee after panning and zooming',async()=>{
+   const focus=mobile.locator('.studio-mobile-recenter');
+   assert.ok(await focus.isVisible(),'Find selected employee button should be visible on phone');
+   await focus.tap();
+   const dimensions=await mobile.evaluate(()=>{
+     const viewport=document.querySelector('#studioViewport').getBoundingClientRect();
+     const card=document.querySelector('.studio-node[data-node-id="e1"]').getBoundingClientRect();
+     return {viewport:{left:viewport.left,right:viewport.right,top:viewport.top,bottom:viewport.bottom},card:{left:card.left,right:card.right,top:card.top,bottom:card.bottom}};
+   });
+   assert.ok(dimensions.card.left>=dimensions.viewport.left-1&&dimensions.card.right<=dimensions.viewport.right+1,'Selected card should be horizontally visible');
+   assert.ok(dimensions.card.top>=dimensions.viewport.top-1&&dimensions.card.bottom<=dimensions.viewport.bottom+1,'Selected card should be vertically visible');
  });
  await mobile.screenshot({path:'qa-artifacts/mobile.png'});
  await mobile.close();

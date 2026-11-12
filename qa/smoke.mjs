@@ -616,6 +616,11 @@ try{
    const focus=mobile.locator('.studio-mobile-recenter');
    assert.ok(await focus.isVisible(),'Find selected employee button should be visible on phone');
    await focus.tap();
+   await mobile.waitForFunction(()=>{
+     const vp=document.querySelector('#studioViewport')?.getBoundingClientRect();
+     const card=document.querySelector('.studio-node[data-node-id="e1"]')?.getBoundingClientRect();
+     return vp&&card&&card.left>=vp.left-1&&card.right<=vp.right+1&&card.top>=vp.top-1&&card.bottom<=vp.bottom+1;
+   },null,{timeout:3000});
    const dimensions=await mobile.evaluate(()=>{
      const viewport=document.querySelector('#studioViewport').getBoundingClientRect();
      const card=document.querySelector('.studio-node[data-node-id="e1"]').getBoundingClientRect();
